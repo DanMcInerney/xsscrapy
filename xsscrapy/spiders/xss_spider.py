@@ -1,9 +1,10 @@
 from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.selector import Selector
-from scrapy.http import Request
+from scrapy.http import Request, FormRequest
 
 from xsscrapy.items import Link
+from loginform import fill_login_form
 
 from urlparse import urlparse, parse_qsl
 import urllib
@@ -25,29 +26,84 @@ class XSSspider(CrawlSpider):
         self.allowed_domains = ['.'.join(hostname.split('.')[-2:])] # adding [] around the value seems to allow it to crawl subdomain of value
         self.payloader = xss_payloader()
 
+        self.login_user = kwargs.get('user')
+        print self.login_user
+        self.login_pass = kwargs.get('pw')
+        print self.login_pass
+
+#### Handle logging in if username and password are given as arguments ####
+    def start_requests(self):
+        if self.login_user and self.login_pass:
+            yield Request(url=self.start_urls[0], callback=self.login)
+        else:
+            yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
+
+    def login(self, response):
+        args, url, method = fill_login_form(response.url, response.body, self.login_user, self.login_pass)
+        return FormRequest(url, method=method, formdata=args, callback=self.confirm_login, dont_filter=True)
+
+    def confirm_login(self, response):
+        if self.login_user.lower() in response.body.lower():
+            self.log('Successfully logged in')
+            return Request(url=self.start_urls[0], dont_filter=True)
+        else:
+            self.log('FAILED to log in! (or at least cannot find the username on the post-login page which may be OK)')
+            return Request(url=self.start_urls[0], dont_filter=True)
+############################################################################
+
     def parse_url(self, response):
-        item = Link()
-        item['url'] = response.url
-        payloaded_urls = self.payloader.run(item['url'])
+        url = response.url
+        body = response.body
+        #if self.login_user and self.login_pass:
+
+        payloaded_urls = self.payloader.run(url)
         if payloaded_urls:
             return [Request(url, callback=self.find_xss_in_body) for url in payloaded_urls]
-
-        #item['body'] = response.body
-        return item
+        return
 
     def find_xss_in_body(self, response):
+        ''' Logic for finding possible XSS vulnerabilities '''
+
+        item = Link()
         delim = '9zqjx'
         body = response.body
         url = response.url
         tester = '"\'><()=;/:'
-        if tester in body:
-            print '------------------------- 100% vulnerable:', url
-
+        re_tester = '\"\'><\(\)=;/:'
+        tester_list = list(tester)
+        foundChars = []
+        allFoundChars = []
         allBetweenDelims = '%s(.*?)%s' % (delim, delim)
-        matches = re.findall(allBetweenDelims, body)
-        if len(matches) > 0:
-            pass
+        tester_matches = re.findall(re_tester, body)
 
+        if len(tester_matches) > 0:
+            print '-------------------- 100% vulnerable: '+url
+            item['vuln_url'] = url+' -- '+tester_matches[0]
+            return item
+
+        delimed_matches = re.findall(allBetweenDelims, body)
+        if len(delimed_matches) > 0:
+            for m in delimed_matches:
+                # Check for the special chars
+                for c in tester_list:
+                    if c in m:
+                        foundChars.append(c)
+                #print 'Found chars:', foundChars, url
+                allFoundChars.append(foundChars)
+                foundChars = []
+            #print allFoundChars, url
+            for chars in allFoundChars:
+                if tester_list == chars:
+                    print '-------------------- 100% vulnerable: '+url
+                    item['vuln_url'] = url
+                    return item
+                elif set(['"', '<', '>', '=', ')', '(']).issubset(set(chars)):
+                    item['vuln_url'] = url
+                    return item
+                #elif set([';', '(', ')']).issubset(set(chars)):
+                #    print 'If this parameter is reflected in javascript, try payload: javascript:alert(1)', url
+
+            allFoundChars = []
 
 class xss_payloader:
     ''' Find urls with parameters then return a list of urls with 1 xss payload per param '''

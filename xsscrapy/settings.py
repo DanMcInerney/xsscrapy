@@ -26,3 +26,5 @@ DUPEFILTER_CLASS = 'scrapy.dupefilter.RFPDupeFilter'
 
 ITEM_PIPELINES = {'xsscrapy.pipelines.XSS_pipeline':100} # Look into what the 100 is doing (I know lower is higher priority, 0-1000)
 
+FEED_FORMAT = 'csv'
+FEED_URI = 'vulnerable-urls.txt'

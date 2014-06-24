@@ -6,5 +6,4 @@
 from scrapy.item import Item, Field
 
 class Link(Item):
-    url = Field()
-    body = Field()
+    vuln_url = Field()
