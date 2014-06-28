@@ -1,2 +1,2 @@
-.pyc
-vulnerable_urls.txt
+*.pyc
+vulnerable-urls.txt
