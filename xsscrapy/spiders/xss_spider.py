@@ -3,13 +3,14 @@ from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.selector import Selector
 from scrapy.http import Request, FormRequest
 
-from xsscrapy.items import Link
+from xsscrapy.items import URL
 from loginform import fill_login_form
-from lxml.html import fromstring
 
 from urlparse import urlparse, parse_qsl
+import lxml.html
 import urllib
 import re
+import sys
 
 '''
 xss headers:
@@ -66,7 +67,7 @@ class XSSspider(CrawlSpider):
             payloaded_urls = self.makeURLs(resp_url, self.test_str)
 
         if payloaded_urls:
-            payloaded_reqs = [Request(url, callback=self.injection_finder, meta={'payload':self.test_str}) for url in payloaded_urls] # Meta is the payload
+            payloaded_reqs = [Request(url, callback=self.injection_finder, meta={'payload':self.test_str, 'orig_url':url}) for url in payloaded_urls] # Meta is the payload
             return payloaded_reqs
         return
 
@@ -151,39 +152,153 @@ class XSSspider(CrawlSpider):
     def injection_finder(self, response):
         ''' Check for injection locations in app '''
         body = response.body
-        root = fromstring(body)
+        root = lxml.html.fromstring(body)
+#        html = lxml.html.tostring(root, pretty_print=True)
         url = response.url
         payload = response.meta['payload']
+        injections = []
+        num_injections = 0
+        quote_enclosure = self.single_or_double_quote(body)
 
         attr_xss = root.xpath("//@*[contains(., '%s')]" % payload)
         elem_attr = self.get_elem_attr(attr_xss)
         text_xss = root.xpath("//*[contains(text(), '%s')]" % payload)
         tags = self.get_text_xss_tags(text_xss)
 
-        ####################### Redundancy
-
-        if len(attr_xss) + len(text_xss) > 0:
-            self.log('*************** lxml found %d injections points in %s' % (len(attr_xss)+len(text_xss), url))
-        if tags:
-            for t in tags:
-                self.log('***** Found injection point between <%s> tags' % t)
         if elem_attr:
-            for ea in elem_attr:
-                self.log('***** Found attribute injection point in <%s> tag\'s attribute "%s"' % (ea[0], ea[1]))
+            num_injections = len(elem_attr)
+        if tags:
+            num_injections = num_injections + len(tags)
+
+        if num_injections > 0:
+            self.log('%d injection points in %s' % (num_injections, url))
+
+            if tags:
+                for t in tags:
+                    line = t[0]
+                    tag = t[1]
+                    self.log('Found injection point between <%s> tags' % tag)
+                    injections.append((line, 'tag', tag))
+            if elem_attr:
+                for ea in elem_attr:
+                    line = ea[0]
+                    tag = ea[1]
+                    attr = ea[2]
+                    attr_val = ea[3]
+                    if attr == 'href' and payload == attr_val:
+                        redir = True # sets the stage for a JaVASCrIPT:prompt(55) payload since the href value is the same as the payload
+                    else:
+                        redir = None
+                    self.log('Found attribute injection point in <%s> tag\'s attribute "%s"' % (tag, attr))
+                    injections.append((line, 'attr', tag, attr, redir))
+
+            injections = sorted(injections)
+            orig_url = response.meta['orig_url']
+            xss_reqs = self.xss_req_maker(injections, orig_url, quote_enclosure)
+            return xss_reqs
+
         ##################################
 
-        if len(attr_xss) + len(text_xss) > 0:
-            # If it's an XSS in an attribute then we add the ' and " chars to the payload since those are necessary to break out of the attr
-            if elem_attr:
-                xss_chars = '(\'"):=<>'
+    def xss_req_maker(self, injections, orig_url, quote_enclosure):
+        # If injection between <script> tags, check single+double quotes, semi-colon
+        # if in href attr and value is identical to input, check JaVaScRIPt:prompt(44)
+        # populated from http://www.w3schools.com/tags/ref_eventattributes.asp
+        event_attributes = ['onafterprint', 'onbeforeprint', 'onbeforeunload', 'onerror',
+                            'onhaschange', 'onload', 'onmessage', 'onoffline', 'ononline',
+                            'onpagehide', 'onpageshow', 'onpopstate', 'onredo', 'onresize',
+                            'onstorage', 'onundo', 'onunload', 'onblur', 'onchange',
+                            'oncontextmenu', 'onfocus', 'onformchange', 'onforminput',
+                            'oninput', 'oninvalid', 'onreset', 'onselect', 'onsubmit',
+                            'onkeydown', 'onkeypress', 'onkeyup', 'onclick', 'ondblclick',
+                            'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover',
+                            'ondragstart', 'ondrop', 'onmousedown', 'onmousemove',
+                            'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel',
+                            'onscroll', 'onabort', 'oncanplay', 'oncanplaythrough',
+                            'ondurationchange', 'onemptied', 'onended', 'onerror',
+                            'onloadeddata', 'onloadedmetadata', 'onloadstart', 'onpause',
+                            'onplay', 'onplaying', 'onprogress', 'onratechange',
+                            'onreadystatechange', 'onseeked', 'onseeking', 'onstalled',
+                            'onsuspend', 'ontimeupdate', 'onvolumechange', 'onwaiting']
+
+        reqs = []
+        tag_payload = '()=<>'
+        attr_payload = quote_enclosure+tag_payload
+        js_payload = '\'"(){}[]'
+        redir_payload = 'JaVAscRIPT:prompt(99)'
+        payloads = []
+
+        # Big 3 XSSes: in a tag attribute, inbetween tags, and within embedded JS
+        for i in injections:
+            print i
+            line = i[0]
+            kind = i[1]
+            tag = i[2]
+
+            if kind == 'tag':
+
+                # Test for embedded JS XSS
+                if tag == 'script': # Make sure we're not doubling the JS-escaping payload
+                    if js_payload not in payloads:
+                        payloads.append(js_payload)
+
+                # Test for normal between tag XSS (no quotes necessary)
+                if tag_payload not in payloads and attr_payload not in payloads:
+                    payloads.append(tag_payload)
+
+            if kind == 'attr':
+                attr = i[3]
+                redir = i[4] # Just a check to see if there's a redirect/xss vuln possibility
+
+                # Test for javascript-executing attribute-based XSS
+                if attr in event_attributes:
+                    if js_payload not in payloads:
+                        payloads.append(js_payload)
+
+                # Test for open redirect/XSS if user input is reflected in entirety in href attribute value
+                elif attr == 'href':
+                    if i[4] == True and redire_payload not in payloads: # the user input is the entire attribute value of attr href
+                        payloads.append(redir_payload)
+
+                # Test for normal attribute-based XSS (needs either ' or " to be unescaped depending on which char the value is wrapped in
+                if attr_payload not in payloads:
+                    # Check if tag payload is in payloads, if it is then just change it in place to include quotes to escape attribute text
+                    if tag_payload not in payloads:
+                        payloads.append(attr_payload)
+                    else:
+                        for idx, p in enumerate(payloads):
+                            if tag_payload == p:
+                                p = attr_payload
+                                payloads[idx] = p
+
+        # Add delimeter to payloads
+        payloads = [(self.test_str+p+self.test_str, self.test_str+urllib.quote_plus(p)+self.test_str) for p in payloads]
+        reqs = self.xssed_url_gen(orig_url, payloads, injections)
+        #for r in reqs:
+        #    print r
+
+        return reqs
+
+    def single_or_double_quote(self, body):
+        ''' I feel like this function is poorly written. At least it seems reliable. '''
+        quote = re.search('<a href=(.)', body)
+        if quote == None:
+            quote = re.search('<link href=(.)', body)
+
+        try:
+            quote = quote.group(1)
+        except AttributeError:
+            squote = re.findall('.=(\')', body)
+            dquote = re.findall('.=(")', body)
+            if len(squote) > len(dquote):
+                quote = "'"
             else:
-                xss_chars = '():=<>'
+                quote = '"'
+        return quote
 
-            xss_chars_payload = self.test_str+xss_chars+self.test_str
-
-            urls = self.makeURLs(url, xss_chars_payload)
-            xss_chars_reqs = [Request(url, callback=self.xss_chars_finder, meta={'payload':xss_chars_payload}) for url in urls] # Meta is the payload
-            return xss_chars_reqs
+    def xssed_url_gen(self, orig_url, payloads, injections):
+        urls = [(orig_url.replace(self.test_str, i), p[0]) for p in payloads for i in p] # list of (url, unencoded payload)
+        p_reqs = [Request(url[0], callback=self.xss_chars_finder, meta={'payload':url[1], 'injections':injections}, dont_filter=True) for url in urls] # url[0] = url   url[1] = unencoded payload
+        return p_reqs
 
     def get_elem_attr(self, attr_xss):
         elem_attr = []
@@ -193,7 +308,9 @@ class XSSspider(CrawlSpider):
                     if x == y[1]:
                         tag = x.getparent().tag
                         attr = y[0]
-                        elem_attr.append((tag, attr))
+                        line = x.getparent().sourceline
+                        attr_val = x
+                        elem_attr.append((line, tag, attr, attr_val))
             return elem_attr
 
     def get_text_xss_tags(self, text_xss):
@@ -201,48 +318,53 @@ class XSSspider(CrawlSpider):
         if len(text_xss) > 0:
             tags = []
             for x in text_xss:
-                text_xss_tags.append(x.tag)
+                text_xss_tags.append((x.sourceline, x.tag))
             return text_xss_tags
 
     def xss_chars_finder(self, response):
-        item = Link()
+        ''' Find which chars, if any, are filtered '''
+        item = URL()
 
+        all_found_chars = []
+        found_chars = []
         body = response.body
         #root = fromstring(body)
         url = response.url
+        injections = response.meta['injections']
         payload = response.meta['payload']
-        nodelim_payload = payload.strip(self.test_str)
-        between_delims = '%s(.*?)%s' % (delim, delim)
+        no_delim_payload = payload.strip(self.test_str)
+        chars_between_delims = '%s(.*?)%s' % (self.test_str, self.test_str)
 
         # Check the entire body for exact match
-        if nodelim_payload in body:
-            #print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 100% vulnerable: '+url
-            item['vuln_url'] = 'No filtered XSS characters:',url
+        #if no_delim_payload in body:
+        #    #print '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 100% vulnerable: '+url
+        #    item['high'] = 'No filtered XSS characters: '+url
+        #    return item
+
+        delimed_matches = re.findall(chars_between_delims, body)
+        xss_num = len(delimed_matches)
+        inj_num = len(injections)
+
+        if xss_num != inj_num:
+            err = ('%s\nMismatch between injection count and xss character injection count: %d vs %d' % (url, inj_num, xss_num))
+            item['error'] = err
             return item
 
+        inject_types = zip([i[1] for i in injections], delimed_matches)
+        print inject_types
+
+        if xss_num > 0:
+            # Check for the special chars and append them to a master list of tuples, one tuple per injection point
+            for m in delimed_matches:
+                for c in no_delim_payload:
+                    if c in m:
+                        found_chars.append(c)
+                all_found_chars.append(found_chars)
+                found_chars = []
+
+            all_found_chars = []
 
 
-
-#    def find_xss_in_body(self, response):
-#        ''' Logic for finding possible XSS vulnerabilities '''
-#
-#        item = Link()
-#        delim = '9zqjx'
-#        body = response.body
-#        url = response.url
-#        tester = '"\'><()=;/:'
-#        re_tester = '\"\'><\(\)=;/:'
-#        tester_list = list(tester)
-#        foundChars = []
-#        allFoundChars = []
-#        allBetweenDelims = '%s(.*?)%s' % (delim, delim)
-#        tester_matches = re.findall(re_tester, body)
-#
-#        if len(tester_matches) > 0:
-#            print '-------------------- 100% vulnerable: '+url
-#            item['vuln_url'] = url+' -- '+tester_matches[0]
-#            return item
-#
 #        delimed_matches = re.findall(allBetweenDelims, body)
 #        if len(delimed_matches) > 0:
 #            for m in delimed_matches:
@@ -266,3 +388,48 @@ class XSSspider(CrawlSpider):
 #                #    print 'If this parameter is reflected in javascript, try payload: javascript:alert(1)', url
 #
 #            allFoundChars = []
+######################################3
+        #if len(attr_xss) + len(text_xss) > 0:
+        #    # If it's an XSS in an attribute then we add the ' and " chars to the payload since those are necessary to break out of the attr
+        #    if elem_attr:
+        #        xss_chars = '(\'")=<>' #"><svg/onload=alert(1)
+        #        # encoded_chars = [hex, decimal, html, xss_chars]
+        #        encoded_chars = [xss_chars]
+        #    else:
+        #        xss_chars = '()=<>' #<svg/onload=alert(1)>
+        #        # encoded_chars = [hex, decimal, html, xss_chars]
+        #        encoded_chars = [xss_chars]
+
+        #    #for i in encoded_chars:
+
+        #    xss_chars_payload = self.test_str+xss_chars+self.test_str
+
+        #    urls = self.makeURLs(url, xss_chars_payload)
+        #    xss_chars_reqs = [Request(url, callback=self.xss_chars_finder, meta={'payload':xss_chars_payload}) for url in urls] # Meta is the payload
+        #    return xss_chars_reqs
+####################################################3
+ #           for i in all_found_chars:
+ #               filtered_chars = list(set(list(payload) - set(i)))
+ #               print filtered_chars
+ #               item['vuln_url'] = url
+ #               if '"' in payload or '"' in payload: # then it's an attribute or JS injection
+ #                   if '"' in i and "'" in i:
+ #                       item['high'] = 'Possible to break out of JS or attribute. Injected chars: '+''.join(i)
+ #                   else: # only ' or " was found to be injected but not both
+ #                       if '"' in i:
+ #                           item['high'] = 'Possible to break out of attribute or JS if enclosed with " char. Injected chars: '+''.join(i)
+ #                       if "'" in i:
+ #                           item['high'] = 'Possible to break out of attribute or JS if enclosed with " char. Injected chars: '+''.join(i)
+ #               else: # it's only a between tag injection
+
+
+
+
+   #             matched_payload = []
+   #             for fc in all_found_chars:
+   #                 print 'found_chars:',fc
+   #                 for c in fc:
+   #                     if c in payload:
+   #                         matched_payload.append(c)
+   #             print 'matched:', matched_payload
+

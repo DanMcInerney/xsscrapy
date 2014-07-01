@@ -5,5 +5,9 @@
 
 from scrapy.item import Item, Field
 
-class Link(Item):
+class URL(Item):
     vuln_url = Field()
+    high = Field()
+    medium = Field()
+    low = Field()
+    error = Field()
