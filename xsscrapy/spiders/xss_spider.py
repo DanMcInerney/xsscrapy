@@ -27,7 +27,8 @@ class XSSspider(CrawlSpider):
     #allowed_domains = ['']
     #start_urls = ['']
 
-    rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), )
+    #rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), )
+    rules = (Rule(SgmlLinkExtractor(), callback='parse_resp', follow=True), )
 
     def __init__(self, *args, **kwargs):
         # run using: scrapy crawl xss_spider -a url='http://something.com'
@@ -134,6 +135,7 @@ class XSSspider(CrawlSpider):
                         req = FormRequest(url, callback=self.form_cb, formdata=values, method=method, meta={'payload':payload, 'injections':injections, 'orig_url':orig_url}, dont_filter = True)
                     elif test_or_payload == 'payload':
                         req = FormRequest(url, callback=self.xss_chars_finder, formdata=values, method=method, meta={'payload':payload, 'injections':injections, 'quote':quote_enclosure,  'orig_url':orig_url}, dont_filter = True)
+                    self.log('Created request for possibly vulnerable form')
                     reqs.append(req)
 
         return reqs
