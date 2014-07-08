@@ -28,3 +28,4 @@ ITEM_PIPELINES = {'xsscrapy.pipelines.XSS_pipeline':100} # Look into what the 10
 
 FEED_FORMAT = 'csv'
 FEED_URI = 'vulnerable-urls.txt'
+#COOKIES_DEBUG = True
