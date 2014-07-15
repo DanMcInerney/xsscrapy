@@ -12,14 +12,19 @@ import urllib
 import re
 import sys
 
-from IPython import embed
+#from IPython import embed
 
 
 '''
 xss headers:
 cookie
-agent
-data control
+data control?
+
+TO DO
+-fix the CSV output. maybe make it tell you explicitly where the injection point is rather than just "form", "headers", "tag". Which header? Which tag?
+ also say what payload was used, like encoded or unencoded?
+-maybe also add more encodings to form payloads like html encoding: &quot; for quotes
+-add DOM detection (pretty easy, just use those regexs from google domwikixss)
 '''
 
 class XSSspider(CrawlSpider):
@@ -94,7 +99,8 @@ class XSSspider(CrawlSpider):
 
         # Fill out forms with xss strings
         if forms:
-            form_reqs = self.make_form_reqs(forms, resp_url, payload, injections=None, quote_enclosure=None)
+            quote_enclosure = self.single_or_double_quote(body)
+            form_reqs = self.make_form_reqs(forms, resp_url, payload, injections=None, quote_enclosure=quote_enclosure) # error if you leave off the '=quote_enclosure'?
             reqs += form_reqs
 
         # Test URL variables with xss strings
@@ -128,13 +134,12 @@ class XSSspider(CrawlSpider):
                             headers={'Referer':pload, 'User-Agent':pload},
                             callback=self.xss_chars_finder,
                             meta={'payload':pload,
-                                  'resp_url':url,
+                                  'resp_url':resp_url,
                                   'quote':quote_enclosure,
+                                  'injections':injections,
                                   'type':'headers'},
                             dont_filter=True)
                             for pload in payloads]
-        for r in reqs:
-            print r
         return reqs
 
     def make_form_reqs(self, forms, resp_url, payloads, injections, quote_enclosure):
@@ -151,7 +156,6 @@ class XSSspider(CrawlSpider):
 
         for payload in payloads:
             for form in forms:
-
                 values, url, method = self.fill_form(resp_url, form, payload)
                 url = self.check_form_validity(values, url, payload, resp_url)
                 if not url:
@@ -160,7 +164,7 @@ class XSSspider(CrawlSpider):
                 if not self.dupe_form(values, url, method, payload):
                     # Make the payloaded requests, dont_filter = True because scrapy treats url encoded data as == to nonurl encoded
                     if test_or_payload == 'test':
-                        cb = self.form_cb
+                        cb = self.make_form_payloads
                     elif test_or_payload == 'payload':
                         cb = self.xss_chars_finder
                     req = FormRequest(url,
@@ -171,6 +175,7 @@ class XSSspider(CrawlSpider):
                                             'injections':injections,
                                             'quote':quote_enclosure,
                                             'resp_url':resp_url,
+                                            'forms':forms,
                                             'type':'form'},
                                       dont_filter = True)
 
@@ -204,16 +209,23 @@ class XSSspider(CrawlSpider):
         return url
 
     def fill_form(self, url, form, payload):
+        ''' Fill out all relevant form input boxes with payload '''
         if form.inputs:
             for i in form.inputs:
-                if not self.input_filter(i):
+                # Only change the value of input and text boxes
+                if type(i).__name__ not in ['InputElement', 'TextareaElement']:
                     continue
-                # Keep submit input value the same
-                if i.type == 'submit':
-                    continue
-                if 'InputElement' in str(type(i)): # gotta be a better way to do this
-                    if i.name:
-                        form.fields[i.name] = payload
+                if type(i).__name__ == 'InputElement':
+                    if i.type == 'password':
+                        continue
+                    if i.type == 'checkbox':
+                        continue
+                    if i.type == 'radio':
+                        continue
+                    if i.type == 'submit':
+                        continue
+                if i.name:
+                    form.fields[i.name] = payload
 
             values = form.form_values()
 
@@ -240,33 +252,20 @@ class XSSspider(CrawlSpider):
         self.form_requests_made.add(vam)
         return
 
-    def input_filter(self, form_input):
-        ''' Get rid of the form inputs that won't carry an xss '''
-        if not isinstance(form_input, lxml.html.InputElement):
-            return
-        if form_input.type == 'password':
-            return
-        if form_input.type == 'checkbox':
-            return
-        if form_input.type == 'radio':
-            return
-        return True
-
-    def form_cb(self, response):
+    def make_form_payloads(self, response):
         orig_url = response.meta['resp_url']
         payload = response.meta['payload']
+        quote_enclosure = response.meta['quote']
+        forms = response.meta['forms']
         body = response.body
         doc = lxml.html.fromstring(body)
         resp_url = response.url
-        quote_enclosure = self.single_or_double_quote(body)
-        forms = doc.xpath('//form')
 
         injections = self.inj_points(payload, doc)
         payloads = self.xss_str_generator(injections, quote_enclosure)
 
         form_reqs = self.make_form_reqs(forms, orig_url, payloads, injections, quote_enclosure)
-        for r in form_reqs:
-            print '    FORM REQUEST:',r
+        return form_reqs
 
     def makeURLs(self, url, payloads):
         ''' Add links with variables in them to the queue again but with XSS testing payloads '''
@@ -384,13 +383,27 @@ class XSSspider(CrawlSpider):
         attr_inj = self.parse_attr_xpath(attr_xss)
         text_xss = doc.xpath("//*[contains(text(), '%s')]" % payload)
         tag_inj = self.parse_tag_xpath(text_xss)
+        #anywhere_text = doc.xpath("//*/text()")
+        # If the response page is just plain text then tag_inj might miss some reflected payloads
+        anywhere_text = doc.xpath("//text()")
+        any_text_inj = self.parse_anytext_xpath(anywhere_text, payload)
 
-        if attr_inj:
+        if len(attr_inj) > 0:
             for a in attr_inj:
                 injections.append(a)
-        if tag_inj:
+        if len(tag_inj) > 0:
             for t in tag_inj:
                 injections.append(t)
+
+        # anywhere_text injections can't exist in attributes so we only compare anywhere_text to tag_inj
+        #tag_inj = set(tag_inj)
+        #any_text_inj = set(any_text_inj)
+        #print tag_inj
+        diff = [x for x in any_text_inj if x not in tag_inj]
+        print diff
+        if len(diff) > 0:
+            for i in diff:
+                injections.append(i)
 
         return sorted(injections)
 
@@ -401,8 +414,6 @@ class XSSspider(CrawlSpider):
         payloads = []
 
         for i in injections:
-            print 'POSTinj'
-            print i ##################3
             line = i[0]
             tag = i[1]
 
@@ -442,8 +453,6 @@ class XSSspider(CrawlSpider):
 
     def xss_chars_finder(self, response):
         ''' Find which chars, if any, are filtered '''
-        # If injection between <script> tags, check single+double quotes, semi-colon
-        # if in href attr and value is identical to input, check JaVaScRIPt:prompt(44)
         # populated from http://www.w3schools.com/tags/ref_eventattributes.asp
         # Test: http://www.securitysift.com/quotes-and-xss-planning-your-escape/ for attribute xss without <>
         # namely: meta tag with content attr, a tag with href attribute (onmouseover payload), option tag any attr (onmouseover payload)
@@ -454,6 +463,7 @@ class XSSspider(CrawlSpider):
         body = response.body
         resp_url = response.url
         xss_type = response.meta['type']
+        event_attrs = self.event_attributes()
         if xss_type == 'url':
             url = re.sub(self.test_str+'.*'+self.test_str, 'INJECT', resp_url)
         else:
@@ -475,7 +485,7 @@ class XSSspider(CrawlSpider):
         # Check the entire body for exact match
         if payload in body:
             msg = '%s | No filtered XSS characters | Unfiltered: %s' % (url, payload)
-            item['type'] = xss_type
+            item['xss_type'] = xss_type
             item['vuln_url'] = msg
             return item
 
@@ -484,7 +494,7 @@ class XSSspider(CrawlSpider):
             xss_num = len(matches)
         if xss_num > 0:
             if xss_num != inj_num:
-                item['type'] = xss_type
+                item['xss_type'] = xss_type
                 err = ('%s | Mismatch between harmless injection count and payloaded injection count: %d vs %d' % (url, inj_num, xss_num))
                 item['error'] = err
 
@@ -512,25 +522,25 @@ class XSSspider(CrawlSpider):
                     if quote_enclosure in payload and attr: # attr
                         if break_attr_chars.issubset(chars):
                             msg = '%s | Able to break out of attribute | Unfiltered: %s' % (url, joined_chars)
-                            item['type'] = xss_type
+                            item['xss_type'] = xss_type
                             item['vuln_url'] = msg
 
                     if '<' and '>' in payload and not attr: # tag
                         if break_tag_chars.issubset(chars):
                             msg = '%s | Able to break out of tags | Unfiltered: %s' % (url, joined_chars)
-                            item['type'] = xss_type
+                            item['xss_type'] = xss_type
                             item['vuln_url'] = msg
 
                     if ';' in payload: #js
                         if break_js_chars.issubset(chars):
                             msg = '%s | Able to break out of javascript | Unfiltered: %s' % (url, joined_chars)
-                            item['type'] = xss_type
+                            item['xss_type'] = xss_type
                             item['vuln_url'] = msg
 
                     if 'javascript:prompt(99)' == payload.lower(): #redir
                         if 'javascript:prompt(99)' == joined_chars.lower():
                             msg = '%s | Open redirect/XSS vulnerability | Unfiltered: %s' % (url, joined_chars)
-                            item['type'] = xss_type
+                            item['xss_type'] = xss_type
                             item['vuln_url'] = msg
 
     def parse_attr_xpath(self, xpath):
@@ -544,7 +554,7 @@ class XSSspider(CrawlSpider):
                         line = x.getparent().sourceline
                         attr_val = x
                         attr_inj.append((line, tag, attr, attr_val))
-            return attr_inj
+        return attr_inj
 
     def parse_tag_xpath(self, xpath):
         tag_inj = []
@@ -552,7 +562,18 @@ class XSSspider(CrawlSpider):
             tags = []
             for x in xpath:
                 tag_inj.append((x.sourceline, x.tag))
-            return tag_inj
+        return tag_inj
+
+    def parse_anytext_xpath(self, xpath, payload):
+        anytext_inj = []
+        if len(xpath) > 0:
+            for x in xpath:
+                if payload in x:
+                    parent = x.getparent()
+                    tag = parent.tag
+                    line = parent.sourceline
+                    anytext_inj.append((line, tag))
+        return anytext_inj
 
     def single_or_double_quote(self, body):
         ''' I feel like this function is poorly written. At least it seems reliable. '''
@@ -572,23 +593,27 @@ class XSSspider(CrawlSpider):
 
         return quote
 
-#                    event_attributes = ['onafterprint', 'onbeforeprint', 'onbeforeunload', 'onerror',
-#                                        'onhaschange', 'onload', 'onmessage', 'onoffline', 'ononline',
-#                                        'onpagehide', 'onpageshow', 'onpopstate', 'onredo', 'onresize',
-#                                        'onstorage', 'onundo', 'onunload', 'onblur', 'onchange',
-#                                        'oncontextmenu', 'onfocus', 'onformchange', 'onforminput',
-#                                        'oninput', 'oninvalid', 'onreset', 'onselect', 'onsubmit',
-#                                        'onkeydown', 'onkeypress', 'onkeyup', 'onclick', 'ondblclick',
-#                                        'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover',
-#                                        'ondragstart', 'ondrop', 'onmousedown', 'onmousemove',
-#                                        'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel',
-#                                        'onscroll', 'onabort', 'oncanplay', 'oncanplaythrough',
-#                                        'ondurationchange', 'onemptied', 'onended', 'onerror',
-#                                        'onloadeddata', 'onloadedmetadata', 'onloadstart', 'onpause',
-#                                        'onplay', 'onplaying', 'onprogress', 'onratechange',
-#                                        'onreadystatechange', 'onseeked', 'onseeking', 'onstalled',
-#                                        'onsuspend', 'ontimeupdate', 'onvolumechange', 'onwaiting']
-#
+    def event_attributes(self):
+        ''' HTML tag attributes that allow javascript '''
+
+        event_attributes = ['onafterprint', 'onbeforeprint', 'onbeforeunload', 'onerror',
+                            'onhaschange', 'onload', 'onmessage', 'onoffline', 'ononline',
+                            'onpagehide', 'onpageshow', 'onpopstate', 'onredo', 'onresize',
+                            'onstorage', 'onundo', 'onunload', 'onblur', 'onchange',
+                            'oncontextmenu', 'onfocus', 'onformchange', 'onforminput',
+                            'oninput', 'oninvalid', 'onreset', 'onselect', 'onsubmit',
+                            'onkeydown', 'onkeypress', 'onkeyup', 'onclick', 'ondblclick',
+                            'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover',
+                            'ondragstart', 'ondrop', 'onmousedown', 'onmousemove',
+                            'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel',
+                            'onscroll', 'onabort', 'oncanplay', 'oncanplaythrough',
+                            'ondurationchange', 'onemptied', 'onended', 'onerror',
+                            'onloadeddata', 'onloadedmetadata', 'onloadstart', 'onpause',
+                            'onplay', 'onplaying', 'onprogress', 'onratechange',
+                            'onreadystatechange', 'onseeked', 'onseeking', 'onstalled',
+                            'onsuspend', 'ontimeupdate', 'onvolumechange', 'onwaiting']
+        return event_attributes
+
             # Match the payload type with the injection point of the same kind (eg, only js injection point gets checked if payload is js chars)
             # If there's multiple injection points of the same kind, make a list of them and return the highest value option
            # match the injection point type with the injection payload type, run through all the matches putting the results into a list, then scan the list
