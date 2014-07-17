@@ -6,6 +6,10 @@
 from scrapy.item import Item, Field
 
 class vuln(Item):
+    unfiltered = Field()
+    xss_payload = Field()
     xss_type = Field()
-    vuln_url = Field()
+    inj_tag = Field()
+    url = Field()
+    inj_point = Field()
     error = Field()
