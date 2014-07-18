@@ -30,6 +30,10 @@ TO DO
 -test if character filtering is detected by the script
 -cleanup xss_chars_finder(self, response)
 -prevent Requests from being URL encoded (line 57 of __init__ in Requests class)
+
+LEFT OFF:
+    -as far as I know, headers and URL injection are working perfectly
+    -time to fix up forms next
 '''
 
 class XSSspider(CrawlSpider):
@@ -85,51 +89,58 @@ class XSSspider(CrawlSpider):
     ############################################################################
 
     def parse_resp(self, response):
+        reqs = []
         orig_url = response.url
         body = response.body
         doc = lxml.html.fromstring(body, base_url=orig_url)
         forms = doc.xpath('//form')
-        reqs = []
         quote_enclosure = self.single_or_double_quote(body)
+        payload = self.test_str
+        payloads = [payload]
 
         # Edit a few select headers with injection string and resend request
-        header_reqs = self.make_tester_reqs('headers', orig_url, quote_enclosure)
-        reqs += header_reqs
+        headers = ['Referer', 'User-Agent']
+        header_reqs = self.make_header_reqs(orig_url, payloads, headers, quote_enclosure, None)
+        if header_reqs:
+            reqs += header_reqs
 
         # Fill out forms with xss strings
-       # if forms:
-       #     form_reqs = self.make_form_reqs(forms, resp_url, payload, injections=None, quote_enclosure=quote_enclosure) # error if you leave off the '=quote_enclosure'?
-       #     reqs += form_reqs
+        if forms:
+            form_reqs = self.make_form_reqs(orig_url, forms, payloads, quote_enclosure, None)
+            reqs += form_reqs
 
-       # # Test URL variables with xss strings
+        # Test URL variables with xss strings
         if '=' in orig_url:
-            url_reqs = self.make_tester_reqs('url', orig_url, quote_enclosure)
-            if url_reqs:
-                reqs += url_reqs
-            #payloaded_urls = self.makeURLs(orig_url, payload)
-            #if payloaded_urls:
-       #         payloaded_reqs = [Request(url,
-       #                                   callback=self.url_xss_reqs,
-       #                                   meta={'payload':self.test_str,
-       #                                         'resp_url':url})
-       #                           for url in payloaded_urls] # Meta is the payload
-       #         reqs += payloaded_reqs
+            payloaded_urls = self.make_URLs(orig_url, payloads) # list of tuples where item[0]=url, and item[1]=changed param
+            if payloaded_urls:
+                url_reqs = self.make_url_reqs(orig_url, payloads, payloaded_urls, quote_enclosure, None)
+                if url_reqs:
+                    reqs += url_reqs
 
         # Each Request here will be given a specific callback relative to whether it was URL variables or form inputs that were XSS payloaded
         return reqs
 
     def get_payloads(self, payloads, method):
-        ''' Add HTML encoded payload if form is POST '''
-        if payloads == self.test_str:
-            return [payloads]
-        else: # HTML encode payload
-            if method == 'POST':
-                html_encoded = cgi.escape(payloads[0], quote=True)
-                payloads.append(html_encoded)
+        ''' HTML encode the payload and URL encode it if the form method is GET '''
+        html_encoded = cgi.escape(payloads[0], quote=True)
+        payloads.append(html_encoded)
+        if method == 'GET':
+            url_encoded = urllib.quote_plus(payloads[0])
+            payloads.append(url_encoded)
         return payloads
 
-    def check_form_validity(self, values, url, payload, resp_url):
+        if len(reqs) > 0:
+            return reqs
+        else:
+            return
+
+    def check_form_validity(self, values, url, payload, orig_url):
         ''' Make sure the form action url and values are valid/exist '''
+
+        # Make sure there's a form action url
+        if url == None:
+            self.log('No form action URL found')
+            return
 
         # Make sure there are values to even change
         if len(values) == 0:
@@ -138,16 +149,13 @@ class XSSspider(CrawlSpider):
 
         # Make sure at least one value has been injected
         if not self.injected_val_confirmed(values, payload):
-            self.log('Form contains no injected values: %s' % resp_url)
+            self.log('Form contains no injected values: %s' % orig_url)
             return
 
-        if url == None:
-            self.log('No form action URL found')
-            return
         # Sometimes lxml doesn't read the form.action right
         if '://' not in url:
             self.log('Form URL contains no scheme, attempting to put together a working form submissions URL')
-            proc_url = self.url_processor(resp_url)
+            proc_url = self.url_processor(orig_url)
             url = proc_url[1]+proc_url[0]+url
 
         return url
@@ -197,7 +205,7 @@ class XSSspider(CrawlSpider):
         return
 
     def make_form_payloads(self, response):
-        orig_url = response.meta['resp_url']
+        orig_url = response.meta['orig_url']
         payload = response.meta['payload']
         quote_enclosure = response.meta['quote']
         forms = response.meta['forms']
@@ -209,7 +217,7 @@ class XSSspider(CrawlSpider):
         if injections:
             payloads = self.xss_str_generator(injections, quote_enclosure)
             if payloads:
-                form_reqs = self.make_form_reqs(forms, orig_url, payloads, injections, quote_enclosure)
+                form_reqs = self.make_form_reqs(orig_url, forms, payloads, quote_enclosure, injections)
                 if form_reqs:
                     return form_reqs
         return
@@ -329,6 +337,8 @@ class XSSspider(CrawlSpider):
             for i in diff:
                 injections.append(i)
 
+        for i in injections:
+            print i
         if len(injections) > 0:
             return sorted(injections)
         else:
@@ -594,37 +604,8 @@ class XSSspider(CrawlSpider):
            # match the injection point type with the injection payload type, run through all the matches putting the results into a list, then scan the list
            # for the highest danger injection point + payload and return that as item['level']
 
-    def make_tester_reqs(self, inj_type, orig_url, quote_enclosure):
-        ''' Make the initial testing requests '''
-        payload = self.test_str
-        payloads = [payload]
-        reqs = []
-
-        if inj_type == 'headers':
-            headers = ['Referer', 'User-Agent:']
-            header_reqs = self.make_header_reqs(orig_url, payloads, headers, quote_enclosure, None)
-            if header_reqs:
-                reqs += header_reqs
-
-        elif inj_type == 'url':
-            payloaded_urls = self.make_URLs(orig_url, payloads) # list of tuples where item[0]=url, and item[1]=changed param
-            if payloaded_urls:
-                url_reqs = self.make_url_reqs(orig_url, payloads, payloaded_urls, quote_enclosure, None)
-                if url_reqs:
-                    reqs += url_reqs
-
-
-        elif inj_type == 'form':
-            pass
-
-        if len(reqs) > 0:
-            return reqs
-        else:
-            return
-
 
     def make_url_reqs(self, orig_url, payloads, payloaded_urls, quote_enclosure, injections):
-
         reqs = [Request(url[0],
                         meta={'type':'url',
                               'inj_point':url[1],
@@ -636,7 +617,6 @@ class XSSspider(CrawlSpider):
         reqs = self.add_callback(injections, reqs)
 
         return reqs
-
 
     def make_header_reqs(self, url, payloads, headers, quote_enclosure, injections):
         ''' Generate header requests '''
@@ -677,6 +657,7 @@ class XSSspider(CrawlSpider):
         quote_enclosure = response.meta['quote']
         body = response.body
         doc = lxml.html.fromstring(body)
+        forms = doc.xpath('//form')
         resp_url = response.url
         reqs = []
 
@@ -698,10 +679,10 @@ class XSSspider(CrawlSpider):
                         if url_reqs:
                             reqs += url_reqs
 
-                #elif inj_type == 'form':
-                #    form_reqs = self.make_form_reqs()
-                #    if form_reqs:
-                #        reqs += form_reqs
+                elif inj_type == 'form':
+                    form_reqs = self.make_form_reqs(orig_url, forms, payloads, quote_enclosure, injections)
+                    if form_reqs:
+                        reqs += form_reqs
 
         if len(reqs) > 0:
             for r in reqs:
@@ -740,7 +721,7 @@ class XSSspider(CrawlSpider):
 
         return reqs
 
-    def make_form_reqs(self, forms, resp_url, payloads, injections, quote_enclosure):
+    def make_form_reqs(self, orig_url, forms, payloads, quote_enclosure, injections):
         ''' Logic: Get forms, find injectable input values, confirm at least one value has been injected,
         confirm that value + url + POST/GET has not been made into a request before, finally send the request '''
         reqs = []
@@ -748,15 +729,18 @@ class XSSspider(CrawlSpider):
         url = None
 
         for form in forms:
+            print forms
             payloads = self.get_payloads(payloads, form.method)
             for payload in payloads:
-                values, url, method = self.fill_form(resp_url, form, payload)
-                #print 'vum:', values, url, method
-                url = self.check_form_validity(values, url, payload, resp_url)
+                values, url, method = self.fill_form(orig_url, form, payload)
+                url = self.check_form_validity(values, url, payload, orig_url)
                 if not url:
                     continue
 
+                # Check for duplicate form submissions by comparing (values, url, method) to previously sent (values, url, method)
                 if not self.dupe_form(values, url, method, payload):
+                    # Get form field names
+                    form_fields = ', '.join([f for f in form.fields])
                     # Make the payloaded requests, dont_filter = True because scrapy treats url encoded data as == to nonurl encoded
                     if payload == self.test_str:
                         cb = self.make_form_payloads
@@ -767,9 +751,10 @@ class XSSspider(CrawlSpider):
                                       formdata=values,
                                       method=method,
                                       meta={'payload':payload,
+                                            'inj_point':'form field names: '+form_fields,
                                             'injections':injections,
                                             'quote':quote_enclosure,
-                                            'resp_url':resp_url,
+                                            'orig_url':orig_url,
                                             'forms':forms,
                                             'type':'form'},
                                       dont_filter = True)
