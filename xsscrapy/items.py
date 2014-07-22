@@ -13,3 +13,4 @@ class vuln(Item):
     url = Field()
     inj_point = Field()
     error = Field()
+    line = Field()

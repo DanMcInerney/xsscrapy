@@ -2,7 +2,41 @@
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
+from scrapy.exceptions import DropItem
 
 class XSS_pipeline(object):
+    ''' Prevent some duplicate url param injection items with process_item
+        Duplicate forms are already prevented in the spider with self.form_requests_made
+        Duplicate header injection is prevented with middleware that prevents duplicate URLs
+        from being crawled '''
+
+    def __init__(self):
+        self.url_param_xss_items = []
+
     def process_item(self, item, spider):
+        ''' Prevent some duplicate url param injection items
+            We already prevent duplicate form data from being sent inside
+            the spider with self.form_requests_made = set()
+            Scared of false negatives so this is a purposely weak filter'''
+
+        if item['xss_type'] == 'url':
+
+            if len(self.url_param_xss_items) > 0:
+
+                for i in self.url_param_xss_items:
+                    # If the injection param, the url up until the injected param and the payload
+                    # are all the same as a previous item, then don't bother creating the item
+
+                    # Match injection points
+                    if item['inj_point'] == i['inj_point']:
+
+                        # Match the URL up until the injected param
+                        injected_var = item['inj_point']+'='
+                        if item['url'].split(injected_var, 1)[0] == i['url'].split(injected_var, 1)[0]:
+
+                            # Match the payload
+                            if item['xss_payload'] == i['xss_payload']:
+                                raise DropItem('Duplicate item found: %s' % item['url'])
+
+            self.url_param_xss_items.append(item)
         return item
