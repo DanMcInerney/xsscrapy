@@ -27,16 +27,34 @@ class XSS_pipeline(object):
                     # If the injection param, the url up until the injected param and the payload
                     # are all the same as a previous item, then don't bother creating the item
 
-                    # Match injection points
+                    # Match tags where injection point was found
                     if item['inj_point'] == i['inj_point']:
 
-                        # Match the URL up until the injected param
-                        injected_var = item['inj_point']+'='
-                        if item['url'].split(injected_var, 1)[0] == i['url'].split(injected_var, 1)[0]:
+                        # Match the URL up until the params
+                        if item['url'].split('?', 1)[0] == i['url'].split('?', 1)[0]:
 
                             # Match the payload
                             if item['xss_payload'] == i['xss_payload']:
-                                raise DropItem('Duplicate item found: %s' % item['url'])
+
+                                # Match the unfiltered characters
+                                if item['unfiltered'] == i['unfiltered']:
+
+                                    raise DropItem('Duplicate item found: %s' % item['url'])
+
 
             self.url_param_xss_items.append(item)
+
+        self.write_to_file(item)
+
         return item
+
+    def write_to_file(self, item):
+        with open('formatted_vulns.txt', 'a+') as f:
+            f.write('\n')
+            f.write('URL: '+item['url']+'\n')
+            f.write('Unfiltered: '+item['unfiltered']+'\n')
+            f.write('Payload: '+item['xss_payload']+'\n')
+            f.write('Type: '+item['xss_type']+'\n')
+            f.write('Injection point: '+item['inj_point']+'\n')
+            for line in item['line']:
+                f.write('Line: '+line[1]+'\n')
