@@ -28,7 +28,7 @@ ITEM_PIPELINES = {'xsscrapy.pipelines.XSS_pipeline':100} # Look into what the 10
 
 FEED_FORMAT = 'csv'
 FEED_URI = 'vulnerable-urls.txt'
-COOKIES_DEBUG = True
+#COOKIES_DEBUG = True
 
 # Test for injection via headers
 #DEFAULT_REQUEST_HEADERS = {'Referer': '9zqjx', 'User-Agent':'9zqjx'}

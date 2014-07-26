@@ -49,7 +49,7 @@ class XSS_pipeline(object):
         return item
 
     def write_to_file(self, item):
-        with open('formatted_vulns.txt', 'a+') as f:
+        with open('formatted-vulns.txt', 'a+') as f:
             f.write('\n')
             f.write('URL: '+item['url']+'\n')
             f.write('Unfiltered: '+item['unfiltered']+'\n')

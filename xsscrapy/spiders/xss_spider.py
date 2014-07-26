@@ -112,7 +112,7 @@ class XSSspider(CrawlSpider):
         disallowed_urls = set([])
         base_url = response.meta['base_url']
         for line in response.body.splitlines():
-            if 'disallow' in line.lower():
+            if 'disallow: ' in line.lower():
                 try:
                     address = line.split()[1]
                 except IndexError:
@@ -136,7 +136,7 @@ class XSSspider(CrawlSpider):
         payloads = [payload]
 
         # Get any cookies (logic of this still needs working out)
-        #cookies = response.headers.getlist('Set-Cookie')
+        cookies = response.headers.getlist('Set-Cookie')
 
         # Edit a few select headers with injection string and resend request
         headers = ['Referer', 'User-Agent']
@@ -246,6 +246,7 @@ class XSSspider(CrawlSpider):
         return
 
     def make_form_payloads(self, response):
+        ''' Create the payloads based on the injection points from the first test request'''
         orig_url = response.meta['orig_url']
         payload = response.meta['payload']
         quote_enclosure = response.meta['quote']
@@ -381,8 +382,6 @@ class XSSspider(CrawlSpider):
                 injections.append(i)
         if len(injections) > 0:
             return sorted(injections)
-        else:
-            return
 
     def xss_str_generator(self, injections, quote_enclosure, inj_type):
         ''' This is where the injection points are analyzed and specific payloads are created '''
