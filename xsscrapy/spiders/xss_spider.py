@@ -16,6 +16,7 @@ import sys
 import cgi
 import HTMLParser
 import requests
+import Cookie
 
 #import w3lib.url
 
@@ -46,8 +47,8 @@ TO DO
 class XSSspider(CrawlSpider):
     name = 'xss_spider'
 
-    rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
-    #rules = (Rule(SgmlLinkExtractor(), callback='parse_resp', follow=True), )
+    #rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
+    rules = (Rule(SgmlLinkExtractor(), callback='parse_resp', follow=True), )
 
     def __init__(self, *args, **kwargs):
         # run using: scrapy crawl xss_spider -a url='http://something.com'
@@ -128,7 +129,7 @@ class XSSspider(CrawlSpider):
             self.log('Added robots.txt disallowed URL to our queue: '+r.url)
         return reqs
 
-    def make_cookie_reqs(self, orig_url, payloaded_cookies, payloads, quote):
+    def make_cookie_reqs(self, orig_url, payloaded_cookies, payloads, quote, cookies):
         reqs = []
 
         if payloads[0] == self.test_str:
@@ -137,7 +138,10 @@ class XSSspider(CrawlSpider):
             cb = self.xss_chars_finder
 
         if self.start_url_cookie_xssed == False:
-            urls = [orig_url]+self.start_urls
+            u = urlparse(self.start_urls[0])
+            base_start_url = u.scheme+'://'+u.hostname
+            urls = [orig_url]+[base_start_url]
+            self.start_url_cookie_xssed = True
         else:
             urls = [orig_url]
 
@@ -147,7 +151,8 @@ class XSSspider(CrawlSpider):
                                    'type':'header',
                                    'inj_point':'cookie',
                                    'quote':quote,
-                                   'orig_url':orig_url},
+                                   'orig_url':orig_url,
+                                   'cookies':cookies},
                              cookies=payloaded_cookie,
                              callback=cb,
                              dont_filter=True)
@@ -155,6 +160,9 @@ class XSSspider(CrawlSpider):
                              for payload in payloads]
 
         if len(reqs) > 0:
+            for r in reqs:
+                if r.callback == self.xss_chars_finder:
+                    self.log('Sending payloaded cookies to %s' % r.url)
             return reqs
 
     def remove_cookie_dupes(self, reqs):
@@ -170,19 +178,27 @@ class XSSspider(CrawlSpider):
         if len(new_reqs) > 0:
             return new_reqs
 
-    def payload_cookies(self, payloads):
-        payloaded_cookies = []
+    def payload_cookies(self, cookies, payloads):
+        ''' Add payload to each cookie value '''
+        all_cookies = []
+        payloaded_cookie_dict = {}
 
         for payload in payloads:
-            payloaded_cookie_dict = {}
-            for k in self.cookie_dict:
-                payloaded_cookie_dict[k] = self.cookie_dict[k]+payload
-            payloaded_cookies.append(payloaded_cookie_dict)
+            for cookie in cookies:
+                c = Cookie.SimpleCookie(cookie)
+                for k in c:
+                    c[k].value = c[k].value+payload
+                    payloaded_cookie_dict[k] = c[k].value
 
-        if len(payloaded_cookies) > 0:
-            return payloaded_cookies
+            all_cookies.append(payloaded_cookie_dict)
+            payloaded_cookie_dict = {}
+
+        if len(all_cookies) > 0:
+            return all_cookies
 
     def parse_resp(self, response):
+        ''' The main response parsing function, called on every response from a new URL
+        Checks for XSS in headers, cookies, and url'''
         reqs = []
         orig_url = response.url
         body = response.body
@@ -192,15 +208,23 @@ class XSSspider(CrawlSpider):
         payload = self.test_str
         payloads = [payload]
 
-        # Get any cookies (logic of this still needs working out)
+        # Get any cookies
+        # It seems to be up and working (no thorough testing) but the cons are outweighing the pros for inclusion
+        # Changing the cookies often leads to error pages or automatically sending the payloaded cookies
+        # for responses that shouldn't be payloaded. All this plus it's a barely-exploitable refl xss anyway
         #cookies = response.headers.getlist('Set-Cookie')
+
+        ## Make sure the cookie isn't already payloaded
+        #for c in cookies:
+        #    if self.test_str in c:
+        #        cookies = None
+        #        break
+
         #if cookies:
-        #    self.cookie_dict = self.make_cookie_dict(cookies)
-        #    if self.cookie_dict:
-        #        payloaded_cookies = self.payload_cookies(payloads)
-        #        if payloaded_cookies:
-        #            cookie_reqs = self.make_cookie_reqs(orig_url, payloaded_cookies, payloads, quote_enclosure)
-        #            reqs += cookie_reqs
+        #    payloaded_cookies = self.payload_cookies(cookies, payloads)
+        #    if payloaded_cookies:
+        #        cookie_reqs = self.make_cookie_reqs(orig_url, payloaded_cookies, payloads, quote_enclosure, cookies)
+        #        reqs += cookie_reqs
 
         # Edit a few select headers with injection string and resend request
         headers = ['Referer', 'User-Agent']
@@ -307,9 +331,6 @@ class XSSspider(CrawlSpider):
         self.form_requests_made.add(vam)
         return
 
-    def make_cookie_payloads(self, response):
-        pass
-
     def make_form_payloads(self, response):
         ''' Create the payloads based on the injection points from the first test request'''
         orig_url = response.meta['orig_url']
@@ -358,6 +379,9 @@ class XSSspider(CrawlSpider):
     def make_cookie_dict(self, cookies):
         cookie_dict = {}
         for c in cookies:
+            cookie = Cookie.SimpleCookie(c)
+            for k in cookie:
+                cookie_dict[k] = cookie[k]+s
             try:
                 var, val = c.split(';', 1)[0].split('=', 1)
                 cookie_dict[var] = val
@@ -367,7 +391,6 @@ class XSSspider(CrawlSpider):
 
         if len(cookie_dict) > 0:
             return cookie_dict
-
 
     def getURLparams(self, url):
         ''' Parse out the URL parameters '''
@@ -597,8 +620,6 @@ class XSSspider(CrawlSpider):
         full_matches = re.findall(re_payload, body)
         for f in full_matches:
             unescaped_match = ''.join(self.get_unfiltered_chars(f, escaped_payload))
-            print '    f:', f
-            print 'unesf:', unescaped_match
             if unescaped_match == escaped_payload:
                 # Does not start with \ so it's not escaping any chars
                 #item['line'] = self.get_inj_line(body, escaped_payload, item)
@@ -608,7 +629,6 @@ class XSSspider(CrawlSpider):
                 item['inj_point'] = inj_point
                 item['xss_type'] = xss_type
                 item['url'] = orig_url
-                print 'WAS FOUND IN ENTIRE BODY SEARCH'
                 return item
             #except UnicodeDecodeError:
             #self.log('Could not decode html off %s' % orig_url)
@@ -768,26 +788,22 @@ class XSSspider(CrawlSpider):
                 break
 
         reqs = self.add_callback(injections, reqs)
-        reqs = self.add_dupe_filter(reqs)
+        reqs = self.url_dupe_filter(reqs)
         if reqs:
             return reqs
 
-    def add_dupe_filter(self, reqs):
+    def url_dupe_filter(self, reqs):
         for r in reqs:
             # Make sure we're only showing payloaded URLs, not tester URLs
             if r.callback == self.xss_chars_finder:
                 # Don't filter payloaded ones, but do filter reqs with the payload == self.test_str
                 r.dont_filter = True
                 self.log('Sending payloaded URL: '+r.url)
-            else:
-                break
 
         return reqs
 
     def make_header_reqs(self, url, payloads, headers, quote_enclosure, injections):
         ''' Generate header requests '''
-
-####################################### REFLECTED COOKIE INJECTIONS HSOULD SHOW UP HERE
 
         reqs = [Request(url,
                         headers={header:payload},
@@ -808,12 +824,8 @@ class XSSspider(CrawlSpider):
                 # Make sure we're only showing payloaded URLs, not tester URLs
                 if r.callback == self.xss_chars_finder:
                     self.log('Sending payloaded header %s with payload %s' % (r.meta['inj_point'], r.meta['payload']))
-                else:
-                    break
-            return reqs
 
-        else:
-            return
+            return reqs
 
     def remove_header_dupes(self, reqs):
         ''' Put all header requests made into a tuple of (url, header, payload) and
@@ -847,6 +859,14 @@ class XSSspider(CrawlSpider):
 
         return reqs
 
+    def make_cookie_payloads(self, payloads):
+        new_ploads = []
+        for p in payloads:
+            p.replace('"', '\"').replace("'", "\'")
+            #p = '"'+p+'"'
+            new_ploads.append(p)
+        return new_ploads
+
     def payloaded_reqs(self, response):
         inj_type = response.meta['type']
         inj_point = response.meta['inj_point'] #header for header req, just 'form' for form req, url param for url req
@@ -866,13 +886,19 @@ class XSSspider(CrawlSpider):
 
                 if inj_type == 'header':
                     headers = [inj_point]
+                    # Cookies
                     if headers[0] == 'cookie':
-                        cookie_reqs = self.make_cookie_reqs(orig_url, payloads, quote_enclosure, injections) # Headers = None
+                        cookies = response.meta['cookies']
+                        c_payloads = self.make_cookie_payloads(payloads)
+                        payloaded_cookies = self.payload_cookies(cookies, c_payloads)
+                        cookie_reqs = self.make_cookie_reqs(orig_url, payloaded_cookies, c_payloads, quote_enclosure, cookies) # Headers = None
                         if cookie_reqs:
                             reqs += cookie_reqs
-                    header_reqs = self.make_header_reqs(orig_url, payloads, headers, quote_enclosure, injections)
-                    if header_reqs:
-                        reqs += header_reqs
+                    # Referer and User-Agent
+                    else:
+                        header_reqs = self.make_header_reqs(orig_url, payloads, headers, quote_enclosure, injections)
+                        if header_reqs:
+                            reqs += header_reqs
 
                 elif inj_type == 'url':
                     payloaded_urls = self.make_URLs(orig_url, payloads) # list of tuples where item[0]=url, item[1]=changed param, item[2]=payload

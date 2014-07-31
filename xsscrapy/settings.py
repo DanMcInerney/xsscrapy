@@ -34,7 +34,7 @@ FEED_FORMAT = 'csv'
 FEED_URI = 'vulnerable-urls.txt'
 #COOKIES_DEBUG = True
 
-CONCURRENT_REQUESTS = 16
+CONCURRENT_REQUESTS = 12
 
 # Test for injection via headers
 #DEFAULT_REQUEST_HEADERS = {'Referer': '9zqjx', 'User-Agent':'9zqjx'}
