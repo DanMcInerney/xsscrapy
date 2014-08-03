@@ -18,15 +18,6 @@ import HTMLParser
 import requests
 import Cookie
 
-#import w3lib.url
-
-#def new_safe_url_string(url, encoding='utf8'):
-#    _safe_chars += '<>(){}="\''
-#    s = unicode_to_str(url, encoding)
-#    return moves.urllib.parse.quote(s, _safe_chars)
-#
-#w3lib.url.safe_url_string = new_safe_url_string
-
 from IPython import embed
 
 __author__ = 'Dan McInerney danhmcinerney@gmail.com'
@@ -38,7 +29,6 @@ data control?
 
 TO DO
 -DirBuster!
--Cookie headers
 -LONGTERM add DOM detection or static js analysis (check retire.js project)
 -cleanup xss_chars_finder(self, response)
 -prevent Requests from being URL encoded (line 57 of __init__ in Requests class)
@@ -202,7 +192,14 @@ class XSSspider(CrawlSpider):
         reqs = []
         orig_url = response.url
         body = response.body
-        doc = lxml.html.fromstring(body, base_url=orig_url)
+
+        try:
+            doc = lxml.html.fromstring(body, base_url=orig_url)
+        except lxml.etree.ParseError:
+            return
+        except lxml.etree.XMLSyntaxError:
+            return
+
         forms = doc.xpath('//form')
         quote_enclosure = self.single_or_double_quote(body)
         payload = self.test_str
@@ -363,6 +360,10 @@ class XSSspider(CrawlSpider):
                     joinedParams = urllib.urlencode(params, doseq=1) # doseq maps the params back together
                     newURL = urllib.unquote(protocol+hostname+path+'?'+joinedParams)
 
+                    # Prevent nonpayloaded URLs
+                    if self.test_str not in newURL:
+                        continue
+
                     # Prevent URL dupes since we have dont_filter set to True for payloaded urls
                     if set(newURL).issubset(self.url_requests_made):
                         continue
@@ -371,6 +372,7 @@ class XSSspider(CrawlSpider):
                     for p in params:
                         if p[1] == payload:
                             changed_value = p[0]
+
                     payloaded_urls.append((newURL, changed_value, payload))
 
         if len(payloaded_urls) > 0:
@@ -465,9 +467,11 @@ class XSSspider(CrawlSpider):
         attr_inj = self.parse_attr_xpath(attr_xss)
         text_xss = doc.xpath("//*[contains(text(), '%s')]" % payload)
         tag_inj = self.parse_tag_xpath(text_xss)
-        #anywhere_text = doc.xpath("//*/text()")
         # If the response page is just plain text then tag_inj might miss some reflected payloads
-        anywhere_text = doc.xpath("//text()")
+        try:
+            anywhere_text = doc.xpath("//text()")
+        except UnicodeDecodeError:
+            self.log('Could not utf8 decode character')
         any_text_inj = self.parse_anytext_xpath(anywhere_text, payload)
 
         if len(attr_inj) > 0:
@@ -559,6 +563,10 @@ class XSSspider(CrawlSpider):
         chars_between_delims = '%s(.*?)%s' % (self.test_str, self.test_str) # 25 since some payload is just under that escaped
         inj_num = len(injections)
         mismatch = False
+        if xss_type == 'form':
+            POST_to = response.meta['POST_to']
+        else:
+            POST_to = None
 
         orig_payload = response.meta['payload'].strip(self.test_str) # xss char payload
         escaped_payload = self.unescape_payload(orig_payload)
@@ -593,27 +601,28 @@ class XSSspider(CrawlSpider):
                     ###### XSS RULES ########
                     # Redirect
                     if 'javascript:prompt(99)' == joined_chars.lower(): # redir
-                        return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, item)
+                        return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
 
                     # JS breakout
                     if self.js_pld == escaped_payload: #js chars
                         if break_js_chars.issubset(chars):
-                            return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, item)
+                            return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
 
                     # Attribute breakout
                     if attr:
                         if quote_enclosure in escaped_payload:
                             if break_attr_chars.issubset(chars):
-                                return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, item)
+                                return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
 
                     # Tag breakout
                     else:
                         if '<' and '>' in escaped_payload:
                             if break_tag_chars.issubset(chars):
-                                return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, item)
+                                return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
 
 
         # Check the entire body for exact match
+        # Escape out all the special regex characters to search for the payload in the html body
         re_payload = escaped_payload.replace('(', '\(').replace(')', '\)').replace('"', '\\"').replace("'", "\\'")
         re_payload = re_payload.replace('{', '\{').replace('}', '\}').replace(']', '\]').replace('[', '\[')
         re_payload = '.{1}?'+re_payload
@@ -623,17 +632,20 @@ class XSSspider(CrawlSpider):
             if unescaped_match == escaped_payload:
                 # Does not start with \ so it's not escaping any chars
                 #item['line'] = self.get_inj_line(body, escaped_payload, item)
+                item['err'] = 'Response passed injection point specific search without success, checking for exact payload match in body (higher chance of false positive here)'
                 item['line'] = self.get_inj_line(body, f, item)
                 item['xss_payload'] = orig_payload
                 item['unfiltered'] = escaped_payload
                 item['inj_point'] = inj_point
                 item['xss_type'] = xss_type
                 item['url'] = orig_url
+                if POST_to:
+                    item['POST_to'] = POST_to
                 return item
             #except UnicodeDecodeError:
             #self.log('Could not decode html off %s' % orig_url)
 
-    def make_item(self, joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line, item):
+    def make_item(self, joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line, POST_to, item):
         ''' Create the vulnerable item '''
 
         item['line'] = line
@@ -643,6 +655,8 @@ class XSSspider(CrawlSpider):
         item['xss_type'] = xss_type
         item['inj_tag'] = tag
         item['url'] = orig_url
+        if POST_to:
+            item['POST_to'] = POST_to
         return item
 
     def get_inj_line(self, body, payload, item):
@@ -874,7 +888,13 @@ class XSSspider(CrawlSpider):
         payload = response.meta['payload']
         quote_enclosure = response.meta['quote']
         body = response.body
-        doc = lxml.html.fromstring(body)
+
+        try:
+            doc = lxml.html.fromstring(body)
+        except lxml.html.XMLSyntaxError:
+            self.log('Python html-parsing library lxml failed to parse %s' % orig_url)
+            self.log('Was attempting to run payload %s against the above URL in a %s injection' % (payload, inj_type))
+
         forms = doc.xpath('//form')
         resp_url = response.url
         reqs = []
@@ -952,7 +972,8 @@ class XSSspider(CrawlSpider):
                                             'quote':quote_enclosure,
                                             'orig_url':orig_url,
                                             'forms':forms,
-                                            'type':'form'},
+                                            'type':'form',
+                                            'POST_to':url},
                                       dont_filter = True)
 
                     if req.callback == self.xss_chars_finder:
@@ -963,3 +984,5 @@ class XSSspider(CrawlSpider):
             return reqs
         else:
             return
+
+

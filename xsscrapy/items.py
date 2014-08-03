@@ -14,3 +14,4 @@ class vuln(Item):
     inj_point = Field()
     error = Field()
     line = Field()
+    POST_to = Field()
