@@ -15,3 +15,10 @@ class vuln(Item):
     error = Field()
     line = Field()
     POST_to = Field()
+
+class inj_chars(Item):
+    resp = Field()
+
+    def __str__(self):
+        ''' Prevent the item from being printed to output during debugging '''
+        return ''

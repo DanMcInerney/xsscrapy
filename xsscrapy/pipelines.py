@@ -51,6 +51,10 @@ class XSS_pipeline(object):
     def write_to_file(self, item):
         with open('formatted-vulns.txt', 'a+') as f:
             f.write('\n')
+            if 'error' in item:
+                f.write('Error: '+item['error']+'\n')
+            if 'POST_to' in item:
+                f.write('POST url: '+item['POST_to']+'\n')
             f.write('URL: '+item['url']+'\n')
             f.write('Unfiltered: '+item['unfiltered']+'\n')
             f.write('Payload: '+item['xss_payload']+'\n')

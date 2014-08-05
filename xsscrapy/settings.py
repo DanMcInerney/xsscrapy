@@ -11,13 +11,8 @@ NEWSPIDER_MODULE = 'xsscrapy.spiders'
 
 #USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36'
 # Get a random user agent for each crawled page
-USER_AGENT_LIST = ['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36',
-                   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.131 Safari/537.36',
-                   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/537.75.14',
-                   'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0',
-                   'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.137 Safari/537.36',
-                   'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0']
-DOWNLOADER_MIDDLEWARES = {'xsscrapy.middlewares.RandomUserAgentMiddleware': 100}
+DOWNLOADER_MIDDLEWARES = {'xsscrapy.middlewares.InjectedDupeFilter': 100,
+                          'xsscrapy.middlewares.RandomUserAgentMiddleware': 200}
                           #'scrapy.contrib.downloadermiddleware.useragent.UserAgentMiddleware': None, # disable stock user-agent middleware
                           #'xsscrapy.middlewares.Unencode_url': 100', # disable stock user-agent middleware
                           #'scrapy.contrib.downloadermiddleware.cookies.CookiesMiddleware': None, # disable stock cookies middleware
@@ -27,11 +22,12 @@ COOKIES_ENABLED = True
 #COOKIES_DEBUG = True
 
 # prevent duplicate link crawling
-DUPEFILTER_CLASS = 'scrapy.dupefilter.RFPDupeFilter'
+#DUPEFILTER_CLASS = 'scrapy.dupefilter.RFPDupeFilter'
+DUPEFILTER_CLASS = 'xsscrapy.bloom.BloomURLDupeFilter'
 
 ITEM_PIPELINES = {'xsscrapy.pipelines.XSS_pipeline':100} # Look into what the 100 is doing (I know lower is higher priority, 0-1000)
 
 FEED_FORMAT = 'csv'
 FEED_URI = 'vulnerable-urls.txt'
 
-CONCURRENT_REQUESTS = 12
+#CONCURRENT_REQUESTS = 12
