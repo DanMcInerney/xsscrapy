@@ -16,7 +16,11 @@ class vuln(Item):
     line = Field()
     POST_to = Field()
 
-class inj_chars(Item):
+    def __str__(self):
+        ''' Prevent the item from being printed to output during debugging '''
+        return ''
+
+class inj_resp(Item):
     resp = Field()
 
     def __str__(self):

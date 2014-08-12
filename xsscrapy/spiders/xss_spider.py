@@ -5,7 +5,7 @@ from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.selector import Selector
 from scrapy.http import Request, FormRequest
 
-from xsscrapy.items import vuln#, inj_resp
+from xsscrapy.items import vuln, inj_resp
 from loginform import fill_login_form
 
 from urlparse import urlparse, parse_qsl
@@ -33,7 +33,7 @@ TO DO
 '''
 
 class XSSspider(CrawlSpider):
-    name = 'xss_spider'
+    name = 'xsscrapy'
 
     #rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
     rules = (Rule(SgmlLinkExtractor(), callback='parse_resp', follow=True), )
@@ -120,7 +120,7 @@ class XSSspider(CrawlSpider):
 
         try:
             doc = lxml.html.fromstring(body, base_url=orig_url)
-        except lxml.etree.ParseError:
+        except lxml.etree.ParserError:
             self.log('Parse error on %s' % orig_url)
             return
         except lxml.etree.XMLSyntaxError:
@@ -435,15 +435,118 @@ class XSSspider(CrawlSpider):
 
         return payloads
 
+    def make_item(self, joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line, POST_to, item):
+        ''' Create the vulnerable item '''
+
+        item['line'] = line
+        item['xss_payload'] = orig_payload
+        item['unfiltered'] = joined_chars
+        item['inj_point'] = inj_point
+        item['xss_type'] = xss_type
+        item['inj_tag'] = tag
+        item['url'] = orig_url
+        if POST_to:
+            item['POST_to'] = POST_to
+        return item
+
+    def get_inj_line(self, body, payload, item):
+        lines = []
+        html_lines = body.splitlines()
+        for idx, line in enumerate(html_lines):
+            line = line.strip()
+            if payload in line:
+                #if len(line) > 500:
+                #    line = line[:200]+'...'
+                num_txt = (idx, line)
+                lines.append(num_txt)
+
+        if len(lines) > 0:
+            return lines
+
+    def parse_injections(self, injection):
+        attr = None
+        attr_val = None
+        line = injection[0]
+        tag = injection[1]
+        if len(injection) > 2: # attribute injections have 4 data points within this var
+            attr = injection[2]
+            attr_val = injection[3]
+
+        return line, tag, attr, attr_val
+
+    def get_unfiltered_chars(self, match, escaped_payload):
+        ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point '''
+        unfiltered_chars = []
+
+        # Make sure js payloads remove escaped ' and "
+        #if escaped_payload == self.js_pld:
+        escaped_chars = re.findall(r'\\(.)', match)
+        for escaped_char in escaped_chars:
+            if escaped_char not in ['x', 'u']: # x and u for hex and unicode \x43, \u0022
+                match = match.replace(escaped_char, '')
+
+        for c in escaped_payload:
+            if c in match:
+                unfiltered_chars.append(c)
+
+        if len(unfiltered_chars) > 0:
+            return unfiltered_chars
+
+    def unescape_payload(self, payload):
+        ''' Unescape the various payload encodings (html and url encodings)'''
+        if '%' in payload:
+            payload = urllib.unquote_plus(payload)
+            if '%' in payload: # in case we ever add double url encoding like %2522 for dub quote
+                payload = urllib.unquote_plus(payload)
+        # only html-encoded payloads will have & in them
+        payload = HTMLParser.HTMLParser().unescape(payload)
+
+        return payload
+
+    def parse_attr_xpath(self, xpath):
+        attr_inj = []
+        if len(xpath) > 0:
+            for x in xpath:
+                for y in x.getparent().items():
+                    if x == y[1]:
+                        tag = x.getparent().tag
+                        attr = y[0]
+                        line = x.getparent().sourceline
+                        attr_val = x
+                        attr_inj.append((line, tag, attr, attr_val))
+        return attr_inj
+
+    def parse_tag_xpath(self, xpath):
+        tag_inj = []
+        if len(xpath) > 0:
+            tags = []
+            for x in xpath:
+                tag_inj.append((x.sourceline, x.tag))
+        return tag_inj
+
+    def parse_anytext_xpath(self, xpath, payload):
+        ''' Creates injection points for the xpath that finds the payload in any html enclosed text '''
+        anytext_inj = []
+        if len(xpath) > 0:
+            for x in xpath:
+                if payload in x:
+                    parent = x.getparent()
+                    tag = parent.tag
+                    line = parent.sourceline
+                    anytext_inj.append((line, tag))
+        return anytext_inj
+
     def xss_chars_finder(self, response):
         ''' Find which chars, if any, are filtered '''
+
+        item = inj_resp()
+        item['resp'] = response
+        return item
+
+
         # populated from http://www.w3schools.com/tags/ref_eventattributes.asp
         # Test: http://www.securitysift.com/quotes-and-xss-planning-your-escape/ for attribute xss without <>
         # namely: meta tag with content attr, a tag with href attribute (onmouseover payload), option tag any attr (onmouseover payload)
-
-        #item = inj_resp()
-        #item['resp'] = response
-        #return item
 
         item = vuln()
         xss_type = response.meta['type']
@@ -536,146 +639,6 @@ class XSSspider(CrawlSpider):
                     item['POST_to'] = POST_to
                 return item
 
-    def make_item(self, joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line, POST_to, item):
-        ''' Create the vulnerable item '''
-
-        item['line'] = line
-        item['xss_payload'] = orig_payload
-        item['unfiltered'] = joined_chars
-        item['inj_point'] = inj_point
-        item['xss_type'] = xss_type
-        item['inj_tag'] = tag
-        item['url'] = orig_url
-        if POST_to:
-            item['POST_to'] = POST_to
-        return item
-
-    def get_inj_line(self, body, payload, item):
-        lines = []
-        html_lines = body.splitlines()
-        for idx, line in enumerate(html_lines):
-            line = line.strip()
-            if payload in line:
-                #if len(line) > 500:
-                #    line = line[:200]+'...'
-                num_txt = (idx, line)
-                lines.append(num_txt)
-
-        if len(lines) > 0:
-            return lines
-
-    def parse_injections(self, injection):
-        attr = None
-        attr_val = None
-        line = injection[0]
-        tag = injection[1]
-        if len(injection) > 2: # attribute injections have 4 data points within this var
-            attr = injection[2]
-            attr_val = injection[3]
-
-        return line, tag, attr, attr_val
-
-    def get_unfiltered_chars(self, match, escaped_payload):
-        ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point '''
-        unfiltered_chars = []
-
-        # Make sure js payloads remove escaped ' and "
-        #if escaped_payload == self.js_pld:
-        escaped_chars = re.findall(r'\\(.)', match)
-        for escaped_char in escaped_chars:
-            if escaped_char not in ['x', 'u']: # x and u for hex and unicode \x43, \u0022
-                match = match.replace(escaped_char, '')
-
-        for c in escaped_payload:
-            if c in match:
-                unfiltered_chars.append(c)
-
-        if len(unfiltered_chars) > 0:
-            return unfiltered_chars
-
-    def unescape_payload(self, payload):
-        ''' Unescape the various payload encodings (html and url encodings)'''
-        if '%' in payload:
-            payload = urllib.unquote_plus(payload)
-            if '%' in payload: # in case we ever add double url encoding like %2522 for dub quote
-                payload = urllib.unquote_plus(payload)
-        # only html-encoded payloads will have & in them
-        payload = HTMLParser.HTMLParser().unescape(payload)
-
-        return payload
-
-    def parse_attr_xpath(self, xpath):
-        attr_inj = []
-        if len(xpath) > 0:
-            for x in xpath:
-                for y in x.getparent().items():
-                    if x == y[1]:
-                        tag = x.getparent().tag
-                        attr = y[0]
-                        line = x.getparent().sourceline
-                        attr_val = x
-                        attr_inj.append((line, tag, attr, attr_val))
-        return attr_inj
-
-    def parse_tag_xpath(self, xpath):
-        tag_inj = []
-        if len(xpath) > 0:
-            tags = []
-            for x in xpath:
-                tag_inj.append((x.sourceline, x.tag))
-        return tag_inj
-
-    def parse_anytext_xpath(self, xpath, payload):
-        anytext_inj = []
-        if len(xpath) > 0:
-            for x in xpath:
-                if payload in x:
-                    parent = x.getparent()
-                    tag = parent.tag
-                    line = parent.sourceline
-                    anytext_inj.append((line, tag))
-        return anytext_inj
-
-    def single_or_double_quote(self, body):
-        ''' I feel like this function is poorly written. At least it seems reliable. '''
-        #quote = re.search('<a href=(.)', body)
-        #if quote == None:
-        #    quote = re.search('<meta.+=(.)', body)
-        #try:
-        #    quote = quote.group(1)
-        #except AttributeError:
-        squote = re.findall('.=(\')', body)
-        dquote = re.findall('.=(")', body)
-        if len(squote) > len(dquote):
-            quote = "'"
-        else:
-            quote = '"'
-
-        #if quote not in ['"', "'"]:
-        #    quote = '"'
-
-        return quote
-
-#    def single_or_double_quote(self, body):
-#        ''' I feel like this function is poorly written. At least it seems reliable. '''
-#        quote = re.search('<a href=(.)', body)
-#        if quote == None:
-#            quote = re.search('<link href=(.)', body)
-#        try:
-#            quote = quote.group(1)
-#        except AttributeError:
-#            squote = re.findall('.=(\')', body)
-#            dquote = re.findall('.=(")', body)
-#            if len(squote) > len(dquote):
-#                quote = "'"
-#            else:
-#                quote = '"'
-#
-#        if quote not in ['"', "'"]:
-#            quote = '"'
-#
-#        return quote
-
     def event_attributes(self):
         ''' HTML tag attributes that allow javascript '''
 
@@ -758,6 +721,7 @@ class XSSspider(CrawlSpider):
         except lxml.etree.XMLSyntaxError:
             self.log('Python html-parsing library lxml failed to parse %s' % orig_url)
             self.log('Was attempting to run payload %s against the above URL in a %s injection' % (payload, inj_type))
+            return
 
         forms = doc.xpath('//form')
         resp_url = response.url
@@ -833,6 +797,40 @@ class XSSspider(CrawlSpider):
 
         if len(reqs) > 0:
             return reqs
+
+    def single_or_double_quote(self, body):
+        ''' I feel like this function is poorly written. At least it seems reliable. '''
+        quote = re.search('<a href=(.)', body)
+        if quote == None:
+            quote = re.search('<link href=(.)', body)
+        try:
+            quote = quote.group(1)
+        except AttributeError:
+            squote = re.findall('.=(\')', body)
+            dquote = re.findall('.=(")', body)
+            if len(squote) > len(dquote):
+                quote = "'"
+            else:
+                quote = '"'
+
+        if quote not in ['"', "'"]:
+            quote = '"'
+
+        return quote
+
+
+
+
+#    def single_or_double_quote(self, body):
+#        ''' Determine if the html attributes are enclosed with " or \' '''
+#        squote = re.findall('.=(\')', body)
+#        dquote = re.findall('.=(")', body)
+#        if len(squote) > len(dquote):
+#            quote = "'"
+#        else:
+#            quote = '"'
+#
+#        return quote
 
 
  #   def make_cookie_reqs(self, orig_url, payloaded_cookies, payloads, quote, cookies):
