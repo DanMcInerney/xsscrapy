@@ -116,8 +116,8 @@ class XSSCharFinder(object):
                     item['POST_to'] = POST_to
                 return item
 
-        for k in item:
-            print k
+        #for k in item:
+        #    print  k, item[k]
         # In case it slips by all of the filters, then we move on
         raise DropItem('No XSS vulns in %s' % resp_url)
 
