@@ -27,7 +27,8 @@ class XSSCharFinder(object):
         resp_url = response.url
         body = response.body
         # Regex: ( ) mean group 1 is within the parens, . means any char, {1,75} means match any char 1 to 25 times
-        chars_between_delims = '%s(.{1,75}?)%s' % (self.test_str, self.test_str)
+        #chars_between_delims = '%s(.{1,75}?)%s' % (self.test_str, self.test_str)
+        chars_between_delims = '%s(.+?)%s' % (self.test_str, self.test_str)
         inj_num = len(injections)
         mismatch = False
         if xss_type == 'form':
@@ -46,7 +47,6 @@ class XSSCharFinder(object):
             xss_num = len(matches)
 
             if xss_num != inj_num:
-                mismatch = True
                 err = ('Mismatch between harmless injection count and payloaded injection count: %d vs %d, increased chance of false positive' % (inj_num, xss_num))
                 item['error'] = err
 
@@ -56,14 +56,24 @@ class XSSCharFinder(object):
                     try:
                         line, tag, attr, attr_val = spider.parse_injections(injections[idx])
                     except IndexError:
+                        mismatch = True
                         # Mismatch in num of test injections and num of payloads found
-                        break
+                        line, tag, attr, attr_val = 'Unknown', 'Unknown', None, None
 
                     joined_chars = ''.join(unfiltered_chars)
                     chars = set(joined_chars)
                     line_html = spider.get_inj_line(body, match, item)
 
                     ###### XSS RULES ########
+
+                    # If there's more XSS matches than harmless injections, we still want to check for the most dangerous characters
+                    if mismatch == True:
+                        if '>' in escaped_payload and '<' in escaped_payload:
+                            if '<' in joined_chars and '>' in joined_chars:
+                                item = self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
+                                item = self.url_item_filtering(item, spider)
+                                return item
+
                     # Redirect
                     if 'javascript:prompt(99)' == joined_chars.lower(): # redir
                         item = self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)

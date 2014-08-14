@@ -160,10 +160,13 @@ class XSSspider(CrawlSpider):
         html_encoded = cgi.escape(payloads[0], quote=True)
         if html_encoded != payloads[0]:
             payloads.append(html_encoded)
-        if method == 'GET':
-            url_encoded = urllib.quote_plus(payloads[0])
-            if url_encoded != payloads[0]:
-                payloads.append(url_encoded)
+
+        # I don't think URL encoding the dangerous chars is all that important
+        #if method == 'GET':
+        #    url_encoded = urllib.quote_plus(payloads[0])
+        #    if url_encoded != payloads[0]:
+        #        payloads.append(url_encoded)
+
         return payloads
 
     def check_form_validity(self, values, url, payload, orig_url):
@@ -401,9 +404,7 @@ class XSSspider(CrawlSpider):
 
                 # Test for normal attribute-based XSS (needs either ' or " to be unescaped depending on which char the value is wrapped in
                 if attr_pld not in payloads:
-                    # Check if tag payload is in payloads, if it is then just change it in place to include quotes to escape attribute text
                     payloads.append(attr_pld)
-                    continue
 
             # Between tag XSS payloads
             else:
@@ -419,8 +420,9 @@ class XSSspider(CrawlSpider):
         if self.tag_pld in payloads and attr_pld in payloads:
             payloads.remove(self.tag_pld)
 
-        if inj_type == 'url':
-            payloads.append(urllib.quote_plus(payloads[0]))
+        # I don't think URL encoding the dangerous chars is all that important
+        #if inj_type == 'url':
+        #    #payloads.append(urllib.quote_plus(payloads[0]))
 
         payloads = self.delim_payloads(payloads)
         if len(payloads) > 0:
@@ -496,8 +498,8 @@ class XSSspider(CrawlSpider):
         ''' Unescape the various payload encodings (html and url encodings)'''
         if '%' in payload:
             payload = urllib.unquote_plus(payload)
-            if '%' in payload: # in case we ever add double url encoding like %2522 for dub quote
-                payload = urllib.unquote_plus(payload)
+            #if '%' in payload: # in case we ever add double url encoding like %2522 for dub quote
+            #    payload = urllib.unquote_plus(payload)
         # only html-encoded payloads will have & in them
         payload = HTMLParser.HTMLParser().unescape(payload)
 
@@ -680,8 +682,14 @@ class XSSspider(CrawlSpider):
                 else:
                     cb = self.xss_chars_finder
 
+                # POST to both the orig url and the specified form action='http://url.com' url
+                if url != orig_url:
+                    urls = [url, orig_url]
+                else:
+                    urls = [url]
+
                 # Make the payloaded requests
-                req = FormRequest(url,
+                req = [FormRequest(url,
                                   callback=cb,
                                   formdata=values,
                                   method=method,
@@ -695,8 +703,9 @@ class XSSspider(CrawlSpider):
                                         'POST_to':url,
                                         'values':values},
                                   dont_filter = True)
+                        for url in urls]
 
-                reqs.append(req)
+                reqs += req
 
         if len(reqs) > 0:
             return reqs
