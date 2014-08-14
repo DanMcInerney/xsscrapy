@@ -24,8 +24,10 @@ class RandomUserAgentMiddleware(object):
             # Make sure we're not testing the UA for injection before setting a random UA
             if '9zqjx' not in request.headers['User-Agent']:
                 request.headers.setdefault('User-Agent', ua)
+                request.meta['UA'] = ua
         else:
             request.headers.setdefault('User-Agent', ua)
+            request.meta['UA'] = ua
 
         return
 

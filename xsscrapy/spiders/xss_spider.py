@@ -133,8 +133,8 @@ class XSSspider(CrawlSpider):
         payloads = [payload]
 
         # Edit a few select headers with injection string and resend request
-        headers = ['Referer', 'User-Agent']
-        header_reqs = self.make_header_reqs(orig_url, payloads, headers, quote_enclosure, None)
+        header = 'Referer'
+        header_reqs = self.make_header_reqs(orig_url, payloads, header, quote_enclosure, None)
         if header_reqs:
             reqs += header_reqs
 
@@ -536,109 +536,6 @@ class XSSspider(CrawlSpider):
                     anytext_inj.append((line, tag))
         return anytext_inj
 
-    def xss_chars_finder(self, response):
-        ''' Find which chars, if any, are filtered '''
-
-        item = inj_resp()
-        item['resp'] = response
-        return item
-
-
-        # populated from http://www.w3schools.com/tags/ref_eventattributes.asp
-        # Test: http://www.securitysift.com/quotes-and-xss-planning-your-escape/ for attribute xss without <>
-        # namely: meta tag with content attr, a tag with href attribute (onmouseover payload), option tag any attr (onmouseover payload)
-
-        item = vuln()
-        xss_type = response.meta['type']
-        orig_url = response.meta['orig_url']
-        injections = response.meta['injections']
-        quote_enclosure = response.meta['quote']
-        inj_point = response.meta['inj_point']
-        resp_url = response.url
-        body = response.body
-        # Regex: ( ) mean group 1 is within the parens, . means any char, {1,25} means match any char 1 to 25 times
-        chars_between_delims = '%s(.{1,75}?)%s' % (self.test_str, self.test_str)
-        inj_num = len(injections)
-        mismatch = False
-        if xss_type == 'form':
-            POST_to = response.meta['POST_to']
-        else:
-            POST_to = None
-
-        orig_payload = response.meta['payload'].strip(self.test_str) # xss char payload
-        escaped_payload = self.unescape_payload(orig_payload)
-
-        break_tag_chars = set(['>', '<', '(', ')'])
-        break_attr_chars = set([quote_enclosure, '(', ')'])
-        break_js_chars = set(['"', "'", '(', ')'])
-
-        matches = re.findall(chars_between_delims, body)
-        if matches:
-            xss_num = len(matches)
-
-            if xss_num != inj_num:
-                mismatch = True
-                err = ('Mismatch between harmless injection count and payloaded injection count: %d vs %d' % (inj_num, xss_num))
-                item['error'] = err
-
-            for idx, match in enumerate(matches):
-                unfiltered_chars = self.get_unfiltered_chars(match, escaped_payload)
-                if unfiltered_chars:
-                    try:
-                        line, tag, attr, attr_val = self.parse_injections(injections[idx])
-                    except IndexError:
-                        # Mismatch in num of test injections and num of payloads found
-                        break
-
-                    joined_chars = ''.join(unfiltered_chars)
-                    chars = set(joined_chars)
-                    line_html = self.get_inj_line(body, match, item)
-
-                    ###### XSS RULES ########
-                    # Redirect
-                    if 'javascript:prompt(99)' == joined_chars.lower(): # redir
-                        return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
-
-                    # JS breakout
-                    if self.js_pld == escaped_payload: #js chars
-                        if break_js_chars.issubset(chars):
-                            return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
-
-                    # Attribute breakout
-                    if attr:
-                        if quote_enclosure in escaped_payload:
-                            if break_attr_chars.issubset(chars):
-                                return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
-
-                    # Tag breakout
-                    else:
-                        if '<' and '>' in escaped_payload:
-                            if break_tag_chars.issubset(chars):
-                                return self.make_item(joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line_html, POST_to, item)
-
-
-        # Check the entire body for exact match
-        # Escape out all the special regex characters to search for the payload in the html body
-        re_payload = escaped_payload.replace('(', '\(').replace(')', '\)').replace('"', '\\"').replace("'", "\\'")
-        re_payload = re_payload.replace('{', '\{').replace('}', '\}').replace(']', '\]').replace('[', '\[')
-        re_payload = '.{1}?'+re_payload
-        full_matches = re.findall(re_payload, body)
-        for f in full_matches:
-            unescaped_match = ''.join(self.get_unfiltered_chars(f, escaped_payload))
-            if unescaped_match == escaped_payload:
-                #if '\\' == unescaped_match[0]:
-                #    continue
-                item['error'] = 'Response passed injection point specific search without success, checking for exact payload match in body (higher chance of false positive here)'
-                item['line'] = self.get_inj_line(body, f, item)
-                item['xss_payload'] = orig_payload
-                item['unfiltered'] = escaped_payload
-                item['inj_point'] = inj_point
-                item['xss_type'] = xss_type
-                item['url'] = orig_url
-                if POST_to:
-                    item['POST_to'] = POST_to
-                return item
-
     def event_attributes(self):
         ''' HTML tag attributes that allow javascript '''
 
@@ -676,7 +573,7 @@ class XSSspider(CrawlSpider):
         if reqs:
             return reqs
 
-    def make_header_reqs(self, url, payloads, headers, quote_enclosure, injections):
+    def make_header_reqs(self, url, payloads, header, quote_enclosure, injections):
         ''' Generate header requests '''
 
         reqs = [Request(url,
@@ -687,7 +584,6 @@ class XSSspider(CrawlSpider):
                               'payload':payload,
                               'quote':quote_enclosure},
                         dont_filter=True)
-                for header in headers
                 for payload in payloads]
 
         reqs = self.add_callback(injections, reqs)
@@ -700,6 +596,7 @@ class XSSspider(CrawlSpider):
 
         if injections:
             for r in reqs:
+                # If its got injection points in the meta data then it needs to go to the dangerous char finder
                 r.meta['injections'] = injections
                 r.callback = self.xss_chars_finder
         else:
@@ -709,52 +606,58 @@ class XSSspider(CrawlSpider):
         return reqs
 
     def payloaded_reqs(self, response):
-        inj_type = response.meta['type']
-        inj_point = response.meta['inj_point'] #header for header req, just 'form' for form req, url param for url req
-        orig_url = response.meta['orig_url']
-        payload = response.meta['payload']
-        quote_enclosure = response.meta['quote']
-        body = response.body
 
+        body = response.body
+        orig_url = response.meta['orig_url']
         try:
             doc = lxml.html.fromstring(body)
         except lxml.etree.XMLSyntaxError:
             self.log('Python html-parsing library lxml failed to parse %s' % orig_url)
-            self.log('Was attempting to run payload %s against the above URL in a %s injection' % (payload, inj_type))
             return
 
+        reqs = []
+        inj_type = response.meta['type']
+        inj_point = response.meta['inj_point'] #header name for header req, just 'form' for form req, url param for url req
+        payloads = [response.meta['payload']]
+        quote_enclosure = response.meta['quote']
+        ua = response.meta['UA']
         forms = doc.xpath('//form')
         resp_url = response.url
-        reqs = []
 
-        injections = self.inj_points(payload, doc)
-        if injections:
-            payloads = self.xss_str_generator(injections, quote_enclosure, inj_type)
-            if payloads:
+        # Check if the user agent is reflected in the source code
+        if ua in body:
+            payloads += [ua]
 
-                if inj_type == 'header':
-                    headers = [inj_point]
-                    # Referer and User-Agent
-                    header_reqs = self.make_header_reqs(orig_url, payloads, headers, quote_enclosure, injections)
-                    if header_reqs:
-                        reqs += header_reqs
+        for payload in payloads:
+            injections = self.inj_points(payload, doc)
+            if injections:
 
-                elif inj_type == 'url':
-                    payloaded_urls = self.make_URLs(orig_url, payloads) # list of tuples where item[0]=url, item[1]=changed param, item[2]=payload
-                    if payloaded_urls:
-                        url_reqs = self.make_url_reqs(orig_url, payloaded_urls, quote_enclosure, injections)
-                        if url_reqs:
-                            reqs += url_reqs
+                if payload == ua:
+                    inj_type = 'header'
+                    inj_point = 'User-Agent'
 
-                elif inj_type == 'form':
-                    form_reqs = self.make_form_reqs(orig_url, forms, payloads, quote_enclosure, injections)
-                    if form_reqs:
-                        reqs += form_reqs
+                xss_payloads = self.xss_str_generator(injections, quote_enclosure, inj_type)
+                if xss_payloads:
+
+                    if inj_type == 'header':
+                        header_reqs = self.make_header_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
+                        if header_reqs:
+                            reqs += header_reqs
+
+                    elif inj_type == 'url':
+                        payloaded_urls = self.make_URLs(orig_url, xss_payloads) # list of tuples where item[0]=url, item[1]=changed param, item[2]=payload
+                        if payloaded_urls:
+                            url_reqs = self.make_url_reqs(orig_url, payloaded_urls, quote_enclosure, injections)
+                            if url_reqs:
+                                reqs += url_reqs
+
+                    elif inj_type == 'form':
+                        form_reqs = self.make_form_reqs(orig_url, forms, xss_payloads, quote_enclosure, injections)
+                        if form_reqs:
+                            reqs += form_reqs
 
         if len(reqs) > 0:
             return reqs
-        else:
-            return
 
     def make_form_reqs(self, orig_url, forms, payloads, quote_enclosure, injections):
         ''' Logic: Get forms, find injectable input values, confirm at least one value has been injected,
@@ -817,6 +720,13 @@ class XSSspider(CrawlSpider):
             quote = '"'
 
         return quote
+
+    def xss_chars_finder(self, response):
+        ''' Find which chars, if any, are filtered '''
+
+        item = inj_resp()
+        item['resp'] = response
+        return item
 
 
 

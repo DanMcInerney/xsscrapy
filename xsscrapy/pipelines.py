@@ -26,7 +26,7 @@ class XSSCharFinder(object):
         inj_point = response.meta['inj_point']
         resp_url = response.url
         body = response.body
-        # Regex: ( ) mean group 1 is within the parens, . means any char, {1,25} means match any char 1 to 25 times
+        # Regex: ( ) mean group 1 is within the parens, . means any char, {1,75} means match any char 1 to 25 times
         chars_between_delims = '%s(.{1,75}?)%s' % (self.test_str, self.test_str)
         inj_num = len(injections)
         mismatch = False
@@ -47,7 +47,7 @@ class XSSCharFinder(object):
 
             if xss_num != inj_num:
                 mismatch = True
-                err = ('Mismatch between harmless injection count and payloaded injection count: %d vs %d' % (inj_num, xss_num))
+                err = ('Mismatch between harmless injection count and payloaded injection count: %d vs %d, increased chance of false positive' % (inj_num, xss_num))
                 item['error'] = err
 
             for idx, match in enumerate(matches):
@@ -93,7 +93,6 @@ class XSSCharFinder(object):
                                 item = self.url_item_filtering(item, spider)
                                 return item
 
-
         # Check the entire body for exact match
         # Escape out all the special regex characters to search for the payload in the html body
         re_payload = escaped_payload.replace('(', '\(').replace(')', '\)').replace('"', '\\"').replace("'", "\\'")
@@ -105,7 +104,7 @@ class XSSCharFinder(object):
             if unescaped_match == escaped_payload:
                 #if '\\' == unescaped_match[0]:
                 #    continue
-                item['error'] = 'Response passed injection point specific search without success, checking for exact payload match in body (higher chance of false positive here)'
+                item['error'] = 'Response passed injection point specific search without success, checked for exact payload match in body (higher chance of false positive here)'
                 item['line'] = spider.get_inj_line(body, f, item)
                 item['xss_payload'] = orig_payload
                 item['unfiltered'] = escaped_payload
@@ -197,63 +196,3 @@ class XSSCharFinder(object):
             for line in item['line']:
                 f.write('Line: '+line[1]+'\n')
                 spider.log('    Line: '+line[1], level='INFO')
-
-
-class XSS_pipeline(object):
-    ''' Prevent some duplicate url param injection items with process_item
-        Duplicate forms are already prevented in the spider with self.form_requests_made
-        Duplicate header injection is prevented with middleware that prevents duplicate URLs
-        from being crawled '''
-
-    def __init__(self):
-        self.url_param_xss_items = []
-
-    def process_item(self, item, spider):
-        ''' Prevent some duplicate url param injection items
-            We already prevent duplicate form data from being sent inside
-            the spider with self.form_requests_made = set()
-            Scared of false negatives so this is a purposely weak filter'''
-
-        if item['xss_type'] == 'url':
-
-            if len(self.url_param_xss_items) > 0:
-
-                for i in self.url_param_xss_items:
-                    # If the injection param, the url up until the injected param and the payload
-                    # are all the same as a previous item, then don't bother creating the item
-
-                    # Match tags where injection point was found
-                    if item['inj_point'] == i['inj_point']:
-
-                        # Match the URL up until the params
-                        if item['url'].split('?', 1)[0] == i['url'].split('?', 1)[0]:
-
-                            # Match the payload
-                            if item['xss_payload'] == i['xss_payload']:
-
-                                # Match the unfiltered characters
-                                if item['unfiltered'] == i['unfiltered']:
-
-                                    raise DropItem('Duplicate item found: %s' % item['url'])
-
-
-            self.url_param_xss_items.append(item)
-
-        self.write_to_file(item)
-
-        return item
-
-    def write_to_file(self, item):
-        with open('formatted-vulns.txt', 'a+') as f:
-            f.write('\n')
-            if 'error' in item:
-                f.write('Error: '+item['error']+'\n')
-            if 'POST_to' in item:
-                f.write('POST url: '+item['POST_to']+'\n')
-            f.write('URL: '+item['url']+'\n')
-            f.write('Unfiltered: '+item['unfiltered']+'\n')
-            f.write('Payload: '+item['xss_payload']+'\n')
-            f.write('Type: '+item['xss_type']+'\n')
-            f.write('Injection point: '+item['inj_point']+'\n')
-            for line in item['line']:
-                f.write('Line: '+line[1]+'\n')
