@@ -1,0 +1,4 @@
+This is the pyOpenSSL documentation source.  It uses Sphinx.  To build the
+documentation, install Sphinx 1.0 and run:
+
+    $ make html

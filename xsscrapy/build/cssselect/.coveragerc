@@ -1,0 +1,9 @@
+[run]
+branch = True
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if sys.version_info
+    if __name__ == '__main__':

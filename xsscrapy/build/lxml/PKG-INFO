@@ -1,0 +1,71 @@
+Metadata-Version: 1.1
+Name: lxml
+Version: 3.3.5
+Summary: Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API.
+Home-page: http://lxml.de/
+Author: lxml dev team
+Author-email: lxml-dev@lxml.de
+License: UNKNOWN
+Download-URL: http://pypi.python.org/packages/source/l/lxml/lxml-3.3.5.tar.gz
+Description: lxml is a Pythonic, mature binding for the libxml2 and libxslt libraries.  It
+        provides safe and convenient access to these libraries using the ElementTree
+        API.
+        
+        It extends the ElementTree API significantly to offer support for XPath,
+        RelaxNG, XML Schema, XSLT, C14N and much more.
+        
+        To contact the project, go to the `project home page
+        <http://lxml.de/>`_ or see our bug tracker at
+        https://launchpad.net/lxml
+        
+        In case you want to use the current in-development version of lxml,
+        you can get it from the github repository at
+        https://github.com/lxml/lxml .  Note that this requires Cython to
+        build the sources, see the build instructions on the project home
+        page.  To the same end, running ``easy_install lxml==dev`` will
+        install lxml from
+        https://github.com/lxml/lxml/tarball/master#egg=lxml-dev if you have
+        an appropriate version of Cython installed.
+        
+        
+        After an official release of a new stable series, bug fixes may become
+        available at
+        https://github.com/lxml/lxml/tree/lxml-3.3 .
+        Running ``easy_install lxml==3.3bugfix`` will install
+        the unreleased branch state from
+        https://github.com/lxml/lxml/tarball/lxml-3.3#egg=lxml-3.3bugfix
+        as soon as a maintenance branch has been established.  Note that this
+        requires Cython to be installed at an appropriate version for the build.
+        
+        3.3.5 (2014-04-18)
+        ==================
+        
+        Bugs fixed
+        ----------
+        
+        * HTML cleaning could fail to strip javascript links that mix control
+          characters into the link scheme.
+        
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Cython
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.4
+Classifier: Programming Language :: Python :: 2.5
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.1
+Classifier: Programming Language :: Python :: 3.2
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: C
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Text Processing :: Markup :: HTML
+Classifier: Topic :: Text Processing :: Markup :: XML
+Classifier: Topic :: Software Development :: Libraries :: Python Modules

@@ -1,0 +1,3 @@
+To use this example, first generate keys and certificates for both the
+client and the server.  You can do this with the script in the directory
+above this one, mk_simple_certs.py.

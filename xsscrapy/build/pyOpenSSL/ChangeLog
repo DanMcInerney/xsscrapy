@@ -1,0 +1,714 @@
+2014-01-09  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL: Port to the cffi-based OpenSSL bindings provided by
+	  <https://github.com/pyca/cryptography>
+
+2013-10-06  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/ssl/context.c: Add support for negotiating TLS v1.1 or
+	  v1.2.
+
+2013-10-03  Christian Heimes  <christian@python.org>
+
+	* OpenSSL/crypto/x509.c: Fix an inconsistency in memory management
+	  in X509.get_serial_number which leads to crashes on some runtimes
+	  (certain Windows/Python 3.3 environments, at least).
+
+2013-08-11  Christian Heimes  <christian@python.org>
+
+	* OpenSSL/crypto/x509ext.c: Fix handling of NULL bytes inside
+	  subjectAltName general names when formatting an X509 extension
+	  as a string.
+	* OpenSSL/crypto/x509.c: Fix memory leak in get_extension().
+
+2012-04-03  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/pkey.c: Release the GIL around RSA and DSA key
+	  generation, based on code from INADA Naoki.
+
+2012-02-13  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/ssl/ssl.c: Add session cache related constants for use
+	  with the new Context.set_session_cache_mode method.
+
+	* OpenSSL/ssl/context.c: Add new Context methods
+	  set_session_cache_mode and get_session_cache_mode.
+
+2011-11-01  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/pkey.c: Raise TypeError when trying to check a
+	  PKey instance which has no private component, instead of crashing.
+	  Based on fix by <lp:~dataway>.
+
+2011-09-14  Žiga Seilnacht <lp:ziga-seilnacht>
+
+	* OpenSSL/crypto/crypto.c: Allow exceptions from passphrase
+	  callbacks to propagate up out of load_privatekey
+	* OpenSSL/crypto/crypto.c: Raise an exception when a too-long
+	  passphrase is returned from a passphrase callback, instead of
+	  silently truncating it.
+	* OpenSSL/crypto/crypto.c: Fix a memory leak when a passphrase
+	  callback returns the wrong type.
+
+2011-09-13  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/crl.c: Add error handling for the use of
+	  X509_CRL_sign.
+
+2011-09-11  Jonathan Ballet  <lp:multani>
+
+	* doc/: Convert the LaTeX documentation to Sphinx-using ReST.
+	* OpenSSL/: Convert the epytext API documentation to Sphinx-using ReST.
+
+2011-09-08  Guillermo Gonzalez  <guillermo.gonzalez@canonical.com>
+
+	* OpenSSL/ssl/context.c: Add Context.set_mode method.
+	* OpenSSL/ssl/ssl.c: Add MODE_RELEASE_BUFFERS and OP_NO_COMPRESSION
+	  constants.
+
+2011-09-02  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.13
+
+2011-06-12  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/pkey.c: Add the PKey.check method, mostly
+	  implemented by Rick Dean, to verify the internal consistency of a
+	  PKey instance.
+
+2011-06-12  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/crypto.c: Fix the sign and verify functions so
+	  they handle data with embedded NULs.  Fix by David Brodsky
+	  <lp:~lihalla>.
+
+2011-05-20  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/ssl/connection.c, OpenSSL/test/test_ssl.py: Add a new
+          method to the Connection type, get_peer_cert_chain, for retrieving
+          the peer's certificate chain.
+
+2011-05-19  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/x509.c, OpenSSL/test/test_crypto.py: Add a new
+          method to the X509 type, get_signature_algorithm, for inspecting
+          the signature algorithm field of the certificate.  Based on a
+          patch from <lp:~okuda>.
+
+2011-05-10  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/crypto.h: Work around a Windows/OpenSSL 1.0 issue
+	  explicitly including a Windows header before any OpenSSL headers.
+
+	* OpenSSL/crypto/pkcs12.c: Work around an OpenSSL 1.0 issue by
+	  explicitly flushing errors known to be uninteresting after calling
+	  PKCS12_parse.
+
+	* OpenSSL/ssl/context.c: Remove SSLv2 support if the underlying
+	  OpenSSL library does not provide it.
+
+	* OpenSSL/test/test_crypto.py: Support an OpenSSL 1.0 change from
+	  MD5 to SHA1 by allowing either hash algorithm's result as the
+	  return value of X509.subject_name_hash.
+
+	* OpenSSL/test/test_ssl.py: Support an OpenSSL 1.0 change from MD5
+	  to SHA1 by constructing certificate files named using both hash
+	  algorithms' results when testing Context.load_verify_locations.
+
+	* Support OpenSSL 1.0.0a.
+
+2011-04-15  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/ssl/ssl.c: Add OPENSSL_VERSION_NUMBER, SSLeay_version
+	  and related constants for retrieving version information about the
+	  underlying OpenSSL library.
+
+2011-04-07  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.12
+
+2011-04-06  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/x509.c: Add get_extension_count and get_extension
+	  to the X509 type, allowing read access to certificate extensions.
+
+	* OpenSSL/crypto/x509ext.c: Add get_short_name and get_data to the
+	  X509Extension type, allowing read access to the contents of an
+	  extension.
+
+2011-03-21  Olivier Hervieu <lp:~ohe>
+
+	* OpenSSL/ssl/ssl.c: Expose a number of symbolic constants for
+	  values passed to the connection "info" callback.
+
+2011-01-22  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/ssl/connection.py: Add support for new-style
+	  buffers (primarily memoryviews) to Connection.send and
+	  Connection.sendall.
+
+2010-11-01  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.11
+
+2010-10-07  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Initial support for Python 3.x throughout the codebase.
+
+2010-09-14  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* OpenSSL/crypto/netscape_spki.c: Fix an off-by-one mistake in the
+	  error handling for NetscapeSPKI.verify.  Add additional error
+          checking to NetscapeSPKI.sign to handle the case where there is no
+          private key.
+
+	* OpenSSL/crypto/x509.c: Fix an overflow bug in the subject_name_hash
+	  method of the X509 type which would cause it to return negative
+	  values on 32 bit systems.
+
+	* OpenSSL/crypto/x509req.c: Fix an off-by-one mistake in the error
+	  handling for X509Req.verify.
+
+	* OpenSSL/ssl/context.c: Fix the error handling in the load_tmp_dh
+	  method of the Context type which would cause it to always raise
+	  MemoryError, regardless of the actual error (such as a bad file
+	  name).
+
+	* OpenSSL/test/: Numerous unit tests added, both for above fixes
+	  and for other previously untested code paths.
+
+2010-07-27  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Re-arrange the repository so that the package can be built and
+	  used in-place without requiring installation.
+
+2010-02-27  James Yonan <james@openvpn.net>
+
+	* src/crypto/crypto.c: Added crypto.sign and crypto.verify methods
+	  that wrap EVP_Sign and EVP_Verify function families, using code
+	  derived from Dave Cridland's PyOpenSSL branch.
+
+	* test/test_crypto.py: Added unit tests for crypto.sign and
+	  crypto.verify.
+
+2010-01-27  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/connection.c, src/util.h: Apply patch from Sandro Tosi to
+	  fix misspellings of "compatibility".
+
+2009-11-13  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.10
+
+2009-11-07  Žiga Seilnacht, Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/connection.c, src/ssl/context.c: Add set_client_ca_list,
+	  add_client_ca, and get_client_ca_list to Context for manipulating
+	  the list of certificate authority names which are sent by servers
+	  with the certificate request message.
+	* src/util.h: Add ssize-related defines if the version of Python
+	  being used does not have them.
+	* setup.py: Significant changes to the way Windows builds are done,
+	  particularly the way OpenSSL headers and libraries are found (with
+	  the new --with-openssl argument to build_ext).
+
+2009-08-27  Rick Dean  <rick@fdd.com>, Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/pkcs12.c: Add setters to the PKCS12 type for the
+	  certificate, private key, ca certificate list, and friendly
+	  name, and add a getter for the friendly name.  Also add a method
+	  for exporting a PKCS12 object as a string.
+	* test/test_crypto.py: Add lots of additional tests for the PKCS12
+	  type.
+	* doc/pyOpenSSL.tex: Documentation for the new PKCS12 methods.
+
+2009-07-17  Rick Dean  <rick@fdd.com>, Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509ext.c: Add subject and issuer parameters to
+	  X509Extension, allowing creation of extensions which require that
+	  information.  Fixes LP#322813.
+
+2009-07-16  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* test/util.py: Changed the base TestCase's tearDown to assert that
+	  no errors were left in the OpenSSL error queue by the test.
+	* src/crypto/crypto.c: Add a private helper in support of the
+	  TestCase.tearDown change.
+	* src/crypto/x509name.c: Changed X509Name's getattr implementation
+	  to clean up the error queue.  Fixes LP#314814.
+	* test/util.c: Changed flush_error_queue to avoid a reference
+	  counting bug caused by macro expansion.
+
+2009-07-16  Rick Dean  <rick@fdd.com>
+
+	* src/rand.c: Added OpenSSL.rand.bytes to get random bytes directly.
+	* src/util.c: Added generic exceptions_from_error_queue to replace
+	  the various other implementations of this function.  Also updated
+	  the rest of the codebase to use this version instead.
+
+2009-07-05  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* test/util.py, test/test_ssl.py, test/test_crypto.py: Fold the
+	  Python 2.3 compatibility TestCase mixin into the TestCase defined
+	  in util.py.
+
+2009-07-05  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* test/util.py, test/test_ssl.py, test/test_crypto.py: Stop trying
+	  to use Twisted's TestCase even when it's available.  Instead,
+	  always use the stdlib TestCase with a few enhancements.
+
+2009-07-04  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Changed most extension types so that they can be instantiated
+	  using the type object rather than a factory function.  The old
+	  factory functions are now aliases for the type objects.
+	  Fixes LP#312786.
+
+2009-05-27  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Changed all docstrings in extension modules to be friendlier
+	  towards Python programmers.  Fixes LP#312787.
+
+2009-05-27  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509ext.c: Correctly deallocate the new Extension
+	  instance when there is an error initializing it and it is not
+	  going to be returned.  Resolves LP#368043.
+
+2009-05-11  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* test/test_crypto.py: Use binary mode for the pipe to talk to the
+	  external openssl binary.  The data being transported over this
+	  pipe is indeed binary, so previously it would often be truncated
+	  or otherwise mangled.
+
+	* src/ssl/connection.h, src/ssl/connection.c, test/test_ssl.py:
+	  Extend the Connection class with support for in-memory BIOs.  This
+	  allows SSL to be run without a real socket, useful for
+	  implementing EAP-TLS or using SSL with Windows IO completion
+	  ports, for example.  Based heavily on contributions from Rick
+	  Dean.
+
+2009-04-25  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.9
+
+2009-04-01  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+            Samuele Pedroni  <pedronis@openend.se>
+
+	* src/util.h: Delete the TLS key before trying to set a new value
+	  for it in case the current thread identifier is a recycled one (if
+	  it is recycled, the key won't be set because there is already a
+	  value from the previous thread to have this identifier and to use
+	  the pyOpenSSL API).
+
+2009-04-01  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/crypto.c: Add FILETYPE_TEXT for dumping keys and
+	  certificates and certificate signature requests to a text format.
+
+2008-12-31  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509ext.c, test/test_crypto.py: Add the get_short_name
+	  method to X509Extension based on patch from Alex Stapleton.
+
+2008-12-31  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509ext.c, test/test_crypto.py: Fix X509Extension so
+	  that it is possible to instantiate extensions which use s2i or r2i
+	  instead of v2i (an extremely obscure extension implementation
+	  detail).
+
+2008-12-30  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* MANIFEST.in, src/crypto/crypto.c, src/crypto/x509.c,
+	  src/crypto/x509name.c, src/rand/rand.c, src/ssl/context.c: Changes
+	  which eliminate compiler warnings but should not change any
+	  behavior.
+
+2008-12-28  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* test/test_ssl.py, src/ssl/ssl.c: Expose DTLS-related constants,
+	  OP_NO_QUERY_MTU, OP_COOKIE_EXCHANGE, and OP_NO_TICKET.
+
+2008-12-28  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/context.c: Add a capath parameter to
+	  Context.load_verify_locations to allow Python code to specify
+	  either or both arguments to the underlying
+	  SSL_CTX_load_verify_locations API.
+	* src/ssl/context.c: Add Context.set_default_verify_paths, a wrapper
+	  around SSL_CTX_set_default_verify_paths.
+
+2008-12-28  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* test/test_crypto.py, src/crypto/x509req.c: Added get_version and
+	  set_version_methods to X509ReqType based on patch from Wouter van
+	  Bommel.  Resolves LP#274418.
+
+2008-09-22  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.8
+
+2008-10-19  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* tsafe.py: Revert the deprecation of the thread-safe Connection
+	  wrapper.  The Connection class should not segfault if used from
+	  multiple threads now, but it generally cannot be relied on to
+	  produce correct results if used without the thread-safe wrapper.
+	* doc/pyOpenSSL.tex: Correct the documentation for the set_passwd_cb
+	  callback parameter so that it accurately describes the required
+	  signature.
+
+2008-09-22  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.8a1
+
+2008-09-21  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/ssl.h, src/ssl/ssl.c: Add a thread-local storage key
+	  which will be used to store and retrieve PyThreadState pointers
+	  whenever it is necessary to release or re-acquire the GIL.
+
+	* src/ssl/context.c: Change global_verify_callback so that it
+	  unconditionally manipulates the Python threadstate, rather than
+	  checking the tstate field which is now always NULL.
+
+2008-04-26  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/context.c: Change global_passphrase_callback and
+	  global_info_callback so that they acquire the GIL before
+	  invoking any CPython APIs and do not release it until after they
+	  are finished invoking all of them (based heavily on on patch
+	  from Dan Williams).
+	* src/ssl/crypto.c: Initialize OpenSSL thread support so that it
+	  is valid to use OpenSSL APIs from more than one thread (based on
+	  patch from Dan Williams).
+	* test/test_crypto.py: Add tests for load_privatekey and
+	  dump_privatekey when a passphrase or a passphrase callback is
+	  supplied.
+	* test/test_ssl.py: Add tests for Context.set_passwd_cb and
+	  Context.set_info_callback.
+
+2008-04-11  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Release 0.7
+
+2008-03-26  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509name.c: Add X509Name.get_components
+
+2008-03-25  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509name.c: Add hash and der methods to X509Name.
+	* src/crypto/x509.c: Fix a bug in X509.get_notBefore and
+	  X509.get_notAfter preventing UTCTIME format timestamps from
+	  working.
+
+2008-03-12  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* Fix coding problems in examples/.  Remove keys and certificates
+	  and add a note about how to generate new ones.
+
+2008-03-09  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509.c: Add getters and setters for the notBefore and
+	  notAfter attributes of X509s.
+	* src/crypto/pkey.h, src/crypto/pkey.c, src/crypto/x509req.c,
+	  src/crypto/x509.c: Track the initialized and public/private state
+	  of EVP_PKEY structures underlying the crypto_PKeyObj type and
+	  reject X509Req signature operations on keys not suitable for the
+	  task.
+
+2008-03-06  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/x509name.c: Fix tp_compare so it only returns -1, 0, or
+	  1.  This eliminates a RuntimeWarning emitted by Python.
+	* src/crypto/x509req.c: Fix reference counting for X509Name returned
+	  by X509Req.get_subject.  This removes a segfault when the subject
+	  name outlives the request object.
+	* src/crypto/x509.c: Change get_serial_number and set_serial_number
+	  to accept Python longs.
+	* doc/pyOpenSSL.tex: A number of minor corrections.
+
+2008-03-03  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/crypto/crypto.c: Expose X509_verify_cert_error_string. (patch
+	  from Victor Stinner)
+
+2008-02-22  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/connection.c src/ssl/context.c src/ssl/ssl.c: Fix
+	  compilation on Windows.  (patch from Michael Schneider)
+
+2008-02-21  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/connection.c: Expose SSL_get_shutdown and
+	  SSL_set_shutdown. (patch from James Knight)
+	* src/ssl/ssl.c: Expose SSL_SENT_SHUTDOWN and SSL_RECEIVED_SHUTDOWN.
+	  (patch from James Knight)
+
+2008-02-19  Jean-Paul Calderone  <exarkun@twistedmatrix.com>
+
+	* src/ssl/context.c: Expose SSL_CTX_add_extra_chain_cert.
+	* src/crypto/x509name.c: Fix memory leaks in __getattr__ and
+	  __setattr_ implementations.
+	* src/crypto/x509.c: Fix memory leak in X509.get_pubkey().
+	* leakcheck/: An attempt at a systematic approach to leak
+	  elimination.
+
+2004-08-13  Martin Sjögren  <msjogren@gmail.com>
+
+	* Released version 0.6.
+
+2004-08-11  Martin Sjögren  <msjogren@gmail.com>
+
+	* doc/pyOpenSSL.tex: Updates to the docs.
+
+2004-08-10  Martin Sjögren  <msjogren@gmail.com>
+
+	* src/crypto/x509.c: Add X509.add_extensions based on a patch
+	  from Han S. Lee.
+	* src/ssl/ssl.c: Add more SSL_OP_ constants. Patch from Mihai
+	  Ibanescu.
+
+2004-08-09  Martin Sjögren  <msjogren@gmail.com>
+
+	* setup.py src/crypto/: Add support for Netscape SPKI extensions
+	  based on a patch from Tollef Fog Heen.
+	* src/crypto/crypto.c: Add support for python passphrase callbacks
+	  based on a patch from Robert Olson.
+
+2004-08-03  Martin Sjögren  <msjogren@gmail.com>
+
+	* src/ssl/context.c: Applied patch from Frederic Peters to add
+	  Context.use_certificate_chain_file.
+	* src/crypto/x509.c: Applid patch from Tollef Fog Heen to add
+	  X509.subject_name_hash and X509.digest.
+
+2004-08-02  Martin Sjögren  <msjogren@gmail.com>
+
+	* src/crypto/crypto.c src/ssl/ssl.c: Applied patch from Bastian
+	  Kleineidam to fix full names of exceptions.
+
+2004-07-19  Martin Sjögren  <msjogren@gmail.com>
+
+	* doc/pyOpenSSL.tex: Fix the errors regarding X509Name's field names.
+
+2004-07-18  Martin Sjögren  <msjogren@gmail.com>
+
+	* examples/certgen.py: Fixed wrong attributes in doc string, thanks
+	  Remy. (SFbug#913315)
+	* __init__.py, setup.py, version.py: Add __version__, as suggested by
+	  Ronald Oussoren in SFbug#888729.
+	* examples/proxy.py: Fix typos, thanks Mihai Ibanescu. (SFpatch#895820)
+
+2003-01-09  Martin Sjögren  <martin@strakt.com>
+
+	* Use cyclic GC protocol in SSL.Connection, SSL.Context, crypto.PKCS12
+	  and crypto.X509Name.
+
+2002-12-02  Martin Sjögren  <martin@strakt.com>
+
+	* tsafe.py: Add some missing methods.
+
+2002-10-06  Martin Sjögren  <martin@strakt.com>
+
+	* __init__.py: Import tsafe too!
+
+2002-10-05  Martin Sjögren  <martin@strakt.com>
+
+	* src/crypto/x509name.c: Use unicode strings instead of ordinary
+	  strings in getattr/setattr. Note that plain ascii strings should
+	  still work.
+
+2002-09-17  Martin Sjögren  <martin@strakt.com>
+
+	* Released version 0.5.1.
+
+2002-09-09  Martin Sjögren  <martin@strakt.com>
+
+	* setup.cfg: Fixed build requirements for rpms.
+
+2002-09-07  Martin Sjögren  <martin@strakt.com>
+
+	* src/ssl/connection.c: Fix sendall() method. It segfaulted because
+	  it was too generous about giving away the GIL.
+	* Added SecureXMLRPCServer example, contributed by Michal Wallace.
+
+2002-09-06  Martin Sjögren  <martin@strakt.com>
+
+	* setup.cfg: Updated the build requirements.
+	* src/ssl/connection.c: Fix includes for AIX.
+
+2002-09-04  Anders Hammarquist  <iko@strakt.com>
+
+	* Added type checks in all the other places where we expect
+	  specific types of objects passed.
+
+2002-09-04  Martin Sjögren  <martin@strakt.com>
+
+	* src/crypto/crypto.c: Added an explicit type check in the dump_*
+	  functions, so that they won't die when e.g. None is passed in.
+
+2002-08-25  Martin Sjögren  <martin@strakt.com>
+
+	* doc/pyOpenSSL.tex: Docs for PKCS12.
+
+2002-08-24  Martin Sjögren  <martin@strakt.com>
+
+	* src/crypto: Added basic PKCS12 support, thanks to Mark Welch
+	  <mark@collab.net>
+
+2002-08-16  Martin Sjögren  <martin@strakt.com>
+
+	* D'oh! Fixes for python 1.5 and python 2.1.
+
+2002-08-15  Martin Sjögren  <martin@strakt.com>
+
+	* Version 0.5. Yay!
+
+2002-07-25  Martin Sjögren  <martin@strakt.com>
+
+	* src/ssl/context.c: Added set_options method.
+	* src/ssl/ssl.c: Added constants for Context.set_options method.
+
+2002-07-23  Martin Sjögren  <martin@strakt.com>
+
+	* Updated docs
+	* src/ssl/connection.c: Changed the get_cipher_list method to actually
+	  return a list! WARNING: This change makes the API incompatible with
+	  earlier versions!
+
+2002-07-15  Martin Sjögren  <martin@strakt.com>
+
+	* src/ssl/connection.[ch]: Removed the fileno method, it uses the
+	  transport object's fileno instead.
+
+2002-07-09  Martin Sjögren  <martin@strakt.com>
+
+	* src/crypto/x509.c src/crypto/x509name.c: Fixed segfault bug where
+	  you used an X509Name after its X509 had been destroyed.
+	* src/crypto/crypto.[ch] src/crypto/x509req.c src/crypto/x509ext.[ch]:
+	  Added X509 Extension support. Thanks to maas-Maarten Zeeman
+	  <maas@awanim.com>
+	* src/crypto/pkey.c: Added bits() and type() methods.
+
+2002-07-08  Martin Sjögren  <martin@strakt.com>
+
+	* src/ssl/connection.c: Moved the contents of setup_ssl into the
+	  constructor, thereby fixing some segfault bugs :)
+	* src/ssl/connection.c: Added connect_ex and sendall methods.
+	* src/crypto/x509name.c: Cleaned up comparisons and NID lookup.
+	  Thank you Maas-Maarten Zeeman <maas@awanim.com>
+	* src/rand/rand.c: Fix RAND_screen import.
+	* src/crypto/crypto.c src/crypto/pkcs7.[ch]: Added PKCS7 management,
+	  courtesy of Maas-Maarten Zeeman <maas@awanim.com>
+	* src/crypto/x509req.c: Added verify method.
+
+2002-06-17  Martin Sjögren  <martin@strakt.com>
+
+	* rpm/, setup.cfg: Added improved RPM-building stuff, thanks to
+	  Mihai Ibanescu <misa@redhat.com>
+
+2002-06-14  Martin Sjögren  <martin@strakt.com>
+
+	* examples/proxy.py: Example code for using OpenSSL through a proxy
+	  contributed by Mihai Ibanescu <misa@redhat.com>
+	* Updated installation instruction and added them to the TeX manual.
+
+2002-06-13  Martin Sjögren  <martin@strakt.com>
+
+	* src/ssl/context.c: Changed global_verify_callback so that it uses
+	  PyObject_IsTrue instead of requring ints.
+	* Added pymemcompat.h to make the memory management uniform and
+	  backwards-compatible.
+	* src/util.h: Added conditional definition of PyModule_AddObject and
+	  PyModule_AddIntConstant
+	* src/ssl/connection.c: Socket methods are no longer explicitly
+	  wrapped. fileno() is the only method the transport layer object HAS
+	  to support, but if you want to use connect, accept or sock_shutdown,
+	  then the transport layer object has to supply connect, accept
+	  and shutdown respectively.
+
+2002-06-12  Martin Sjögren  <martin@strakt.com>
+
+	* Changed comments to docstrings that are visible in Python.
+	* src/ssl/connection.c: Added set_connect_state and set_accept_state
+	  methods. Thanks to Mark Welch <mark@collab.net> for this.
+
+2002-06-11  Martin Sjögren  <martin@strakt.com>
+
+	* src/ssl/connection.c: accept and connect now use SSL_set_accept_state
+	  and SSL_set_connect_state respectively, instead of SSL_accept and
+	  SSL_connect.
+	* src/ssl/connection.c: Added want_read and want_write methods.
+
+2002-06-05  Martin Sjögren  <martin@strakt.com>
+
+	* src/ssl/connection.c: Added error messages for windows. The code is
+	  copied from Python's socketmodule.c. Ick.
+	* src/ssl/connection.c: Changed the parameters to the SysCallError. It
+	  always has a tuple (number, string) now, even though the number
+	  might not always be useful.
+
+2002-04-05  Martin Sjögren  <md9ms@mdstud.chalmers.se>
+
+	* Worked more on the Debian packaging, hopefully the packages
+	  are getting into the main Debian archive soon.
+
+2002-01-10  Martin Sjögren  <martin@strakt.com>
+
+	* Worked some more on the Debian packaging, it's turning out real
+	  nice.
+	* Changed format on this file, I'm going to try to be a bit more
+	  verbose about my changes, and this format makes it easier.
+
+2002-01-08  Martin Sjögren  <martin@strakt.com>
+
+	* Version 0.4.1
+	* Added some example code
+	* Added the thread safe Connection object in the 'tsafe' submodule
+	* New Debian packaging
+
+2001-08-09  Martin Sjögren  <martin@strakt.com>
+
+	* Version 0.4
+	* Added a compare function for X509Name structures.
+	* Moved the submodules to separate .so files, with tiny C APIs so they
+	  can communicate
+	* Skeletal OpenSSL/__init__.py
+	* Removed the err submodule, use crypto.Error and SSL.Error instead
+
+2001-08-06  Martin Sjögren  <martin@strakt.com>
+
+	* Version 0.3
+	* Added more types for dealing with certificates (X509Store, X509Req,
+	  PKey)
+	* Functionality to load private keys, certificates and certificate
+	  requests from memory buffers, and store them too
+	* X509 and X509Name objects can now be modified as well, very neat when
+	  creating certificates ;)
+	* Added SSL_MODE_AUTO_RETRY to smooth things for blocking sockets
+	* Added a sock_shutdown() method to the Connection type
+	* I don't understand why, but I can't use Py_InitModule() to create
+	  submodules in Python 2.0, the interpreter segfaults on the cleanup
+	  process when I do. I added a conditional compile on the version
+	  number, falling back to my own routine. It would of course be nice to
+	  investigate what is happening, but I don't have the time to do so
+	* Do INCREF on the type objects before inserting them in the
+	  dictionary, so they will never reach refcount 0 (they are, after all,
+	  statically allocated)
+
+2001-07-30  Martin Sjögren  <martin@strakt.com>
+
+	* Version 0.2
+	* Lots of tweaking and comments in the code
+	* Now uses distutils instead of the stupid Setup file
+	* Hacked doc/tools/mkhowto, html generation should now work
+
+2001-07-16  Martin Sjögren  <martin@strakt.com>
+
+	* Initial release (0.1, don't expect much from this one :-)
+

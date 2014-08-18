@@ -1,0 +1,30 @@
+Metadata-Version: 1.1
+Name: pyOpenSSL
+Version: 0.14
+Summary: Python wrapper module around the OpenSSL library
+Home-page: https://github.com/pyca/pyopenssl
+Author: Jean-Paul Calderone
+Author-email: exarkun@twistedmatrix.com
+License: APL2
+Description: High-level wrapper around a subset of the OpenSSL library, includes
+         * SSL.Connection objects, wrapping the methods of Python's portable
+           sockets
+         * Callbacks written in Python
+         * Extensive error-handling mechanism, mirroring OpenSSL's error codes
+        ...  and much more ;)
+Platform: UNKNOWN
+Classifier: Development Status :: 6 - Mature
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.2
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Topic :: Security :: Cryptography
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Networking

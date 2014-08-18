@@ -1,0 +1,19 @@
+This directory contains client and server examples for the "Server Name
+Indication" (SNI) feature.
+
+Run server.py with no arguments.  It will accept one client connection and
+then exit.  It has two certificates it can use, one for "example.invalid"
+and another for "another.invalid".  If a client indicates one of these names
+to it, it will use the corresponding certificate for that connection (if a
+client doesn't indicate a name or indicates another name, it won't try to
+use any certificate).
+
+Run client.py with one argument, the server name to indicate.  For example:
+
+  $ python client.py example.invalid
+  Connecting... connected ('127.0.0.1', 8443)
+  Server subject is <X509Name object '/OU=Security/O=pyOpenSSL/CN=example.invalid/ST=New York/C=US/emailAddress=invalid@example.invalid/L=New York'>
+  $
+
+Depending on what hostname is supplied, the server will select a different
+certificate to use and the client output will be different.

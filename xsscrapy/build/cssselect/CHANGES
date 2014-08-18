@@ -1,0 +1,209 @@
+Changelog
+=========
+
+Version 0.9.1
+-------------
+
+Released on 2013-10-17.
+
+* **Backward incompatible change from 0.9**:
+  :meth:`~GenericTranslator.selector_to_xpath` defaults to
+  ignoring pseudo-elements,
+  as it did in 0.8 and previous versions.
+  (:meth:`~GenericTranslator.css_to_xpath` doesn’t change.)
+* Drop official support for Python 2.4 and 3.1,
+  as testing was becoming difficult.
+  Nothing will break overnight,
+  but future releases may on may not work on these versions.
+  Older releases will remain available on PyPI.
+
+
+Version 0.9
+-----------
+
+Released on 2013-10-11.
+
+Add parser support for :attr:`functional
+pseudo-elements <Selector.pseudo_element>`.
+
+*Update:*
+This version accidentally introduced a **backward incompatible** change:
+:meth:`~GenericTranslator.selector_to_xpath` defaults to
+rejecting pseudo-elements instead of ignoring them.
+
+
+Version 0.8
+-----------
+
+Released on 2013-03-15.
+
+Improvements:
+
+* `#22 <https://github.com/SimonSapin/cssselect/issues/22>`_
+  Let extended translators override what XPathExpr class is used
+* `#19 <https://github.com/SimonSapin/cssselect/issues/19>`_
+  Use the built-in ``lang()`` XPath function
+  for implementing the ``:lang()`` pseudo-class
+  with XML documents.
+  This is probably faster than ``ancestor-or-self::``.
+
+Bug fixes:
+
+* `#14 <https://github.com/SimonSapin/cssselect/issues/14>`_
+  Fix non-ASCII pseudo-classes. (Invalid selector instead of crash.)
+* `#20 <https://github.com/SimonSapin/cssselect/issues/20>`_
+  As per the spec, elements containing only whitespace are not considered empty
+  for the ``:empty`` pseudo-class.
+
+
+Version 0.7.1
+-------------
+
+Released on 2012-06-14. Code name *remember-to-test-with-tox*.
+
+0.7 broke the parser in Python 2.4 and 2.5; the tests in 2.x.
+Now all is well again.
+
+Also, pseudo-elements are now correctly made lower-case. (They are supposed
+to be case-insensitive.)
+
+
+Version 0.7
+-----------
+
+Released on 2012-06-14.
+
+Bug fix release: see #2, #7 and #10 on GitHub.
+
+* The tokenizer and parser have been rewritten to be much closer to the
+  specified grammar. In particular, non-ASCII characters and backslash-escapes
+  are now handled correctly.
+* Special characters are protected in the output so that generated XPath
+  exrpessions should always be valid
+* The ``~=``, ``^=`` and ``*=`` attribute operators now correctly never match
+  when used with an empty string.
+
+
+Version 0.6.1
+-------------
+
+Released on 2012-04-25.
+
+Make sure that internal token objects do not "leak" into the public API and
+:attr:`Selector.pseudo_element` is an unicode string.
+
+
+Version 0.6
+-----------
+
+Released on 2012-04-24.
+
+* In ``setup.py`` use setuptools/distribute if available, but fall back
+  on distutils.
+* Implement the ``:lang()`` pseudo-class, although it is only based on
+  ``xml:lang`` or ``lang`` attributes. If the document language is known from
+  some other meta-data (like a ``Content-Language`` HTTP header or ``<meta>``
+  element), a workaround is to set a lang attribute on the root element.
+
+
+Version 0.5
+-----------
+
+Released on 2012-04-20.
+
+* Fix case sensitivity issues.
+* Implement :class:`HTMLTranslator` based on the `HTML5 specification`_
+  rather than guessing; add the ``xhtml`` parameter.
+* Several bug fixes and better test coverage.
+
+.. _HTML5 specification: http://www.w3.org/TR/html5/links.html#selectors
+
+
+Version 0.4
+-----------
+
+Released on 2012-04-18.
+
+* Add proper support for pseudo-elements
+* Add specificity calculation
+* Expose the :func:`parse` function and the parsed :class:`Selector` objects
+  in the API.
+* Add the :meth:`~GenericTranslator.selector_to_xpath` method.
+
+
+Version 0.3
+-----------
+
+Released on 2012-04-17.
+
+* Fix many parsing bugs.
+* Rename the :class:`Translator` class to :class:`GenericTranslator`
+* There, implement ``:target``, ``:hover``, ``:focus``, ``:active``
+  ``:checked``, ``:enabled``, ``:disabled``, ``:link`` and ``:visited``
+  as never matching.
+* Make a new HTML-specific ``HTMLTranslator`` subclass. There, implement
+  ``:checked``, ``:enabled``, ``:disabled``, ``:link`` and ``:visited``
+  as appropriate for HTML, with all links  "not visited".
+* Remove the :func:`css_to_xpath` function. The translator classes
+  are the new API.
+* Add support for ``:contains()`` back, but case-sensitive. lxml will
+  override it to be case-insensitive for backward-compatibility.
+
+Discussion is open if anyone is interested in implementing eg. ``:target``
+or ``:visited`` differently, but they can always do it in a ``Translator``
+subclass.
+
+
+Version 0.2
+-----------
+
+Released on 2012-04-16.
+
+* Remove the ``CSSSelector`` class. (The ``css_to_xpath()`` function is now
+  the main API.)
+* Remove support for the ``:contains()`` pseudo-class.
+
+These changes allow cssselect to be used without lxml. (Hey, this was
+the whole point of this project.) The tests still require lxml, though.
+The removed parts are expected to stay in lxml for backward-compatibility.
+
+``:contains()`` only existed in an `early draft
+<http://www.w3.org/TR/2001/CR-css3-selectors-20011113/#content-selectors>`_
+of the Selectors specification, and was removed before Level 3 stabilized.
+Internally, it used a custom XPath extension function which can be
+difficult to express outside of lxml.
+
+
+* Separate the XPath translation from the parsed objects into a new
+  ``Translator`` class.
+
+Subclasses of ``Translator`` can be made to change the way that some selector
+(eg. a pseudo-class) is implemented.
+
+
+Version 0.1
+-----------
+
+Released on 2012-04-13.
+
+Extract lxml.cssselect from the rest of lxml and make it a stand-alone project.
+
+Commit ``ea53ceaf7e44ba4fbb5c818ae31370932f47774e`` was taken on 2012-04-11
+from the 'master' branch of lxml’s git repository. This is somewhere
+between versions 2.3.4 and 2.4.
+
+The commit history has been rewritten to:
+
+* Remove lxml files unrelated to cssselect
+* Import the early history from the 'html' branch in the old SVN repository
+* Fix author names in commits from SVN
+
+This project has its own import name, tests and documentation. But the
+code itself is unchanged and still depends on lxml.
+
+
+Earlier history
+---------------
+
+Search for *cssselect* in `lxml’s changelog
+<https://github.com/lxml/lxml/blob/master/CHANGES.txt>`_

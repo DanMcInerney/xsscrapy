@@ -89,30 +89,6 @@ class Test(object):
     def process_request(self, request, spider):
         print '   UA:', request.headers['User-Agent']
 
-#class Unencode_url(object):
-#    ''' Fails. Not spectacularly, just doesn't do what we want '''
-#    def process_request(self, request, spider):
-#        test_str = '9zqjx'
-#
-#        try:
-#            p = request.meta['payload']
-#            if p == test_str:
-#                return
-#        except KeyError:
-#            return
-#
-#        #regex = re.compile('%s(.*?)%s' % (test_str, test_str)
-#        chars_between_delims = '%s(.*?)%s' % (test_str, test_str)
-#        matches = re.findall(chars_between_delims, request.url)
-#        for m in matches:
-#            unq = unquote(m)
-#            unq_url = request.url.replace(m, unq)
-#            print '       ', unq_url
-#            req = request.replace(url=unq_url)
-#            print '      ', req.url
-
-
-
 #def new_process_request(self, request, spider):
 #    if 'dont_merge_cookies' in request.meta:
 #        return

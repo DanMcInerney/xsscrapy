@@ -1,0 +1,8 @@
+TODO list
+
+* Think more carefully about the relation between X509 and X509_NAME
+  _set_{subject,issuer} dup the new name and free the old one.
+* Consider Pyrex
+* Updated docs! (rpm, ...)
+* _Somehow_ get makefile to work!
+* httpslib, imapslib, ftpslib?

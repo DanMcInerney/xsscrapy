@@ -2,7 +2,7 @@
 
 from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
-from scrapy.selector import Selector
+#from scrapy.selector import HtmlXPathSelector
 from scrapy.http import Request, FormRequest
 
 from xsscrapy.items import vuln, inj_resp
@@ -23,11 +23,8 @@ from IPython import embed
 __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
 '''
-xss headers:
-data control?
-
 TO DO
--LONGTERM add DOM detection or static js analysis (check retire.js project)
+-LONGTERM add static js analysis (check retire.js project)
 -cleanup xss_chars_finder(self, response)
 -prevent Requests from being URL encoded (line 57 of __init__ in Requests class)
 '''
@@ -35,6 +32,9 @@ TO DO
 class XSSspider(CrawlSpider):
     name = 'xsscrapy'
 
+    # If you're logging into a site with a logout link, you'll want to
+    # uncomment the rule below and comment the shorter one right after to
+    # prevent yourself from being logged out automatically
     #rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
     rules = (Rule(SgmlLinkExtractor(), callback='parse_resp', follow=True), )
 
@@ -145,12 +145,12 @@ class XSSspider(CrawlSpider):
                 reqs += form_reqs
 
         # Test URL variables with xss strings
-        if '=' in orig_url:
-            payloaded_urls = self.make_URLs(orig_url, payloads) # list of tuples where item[0]=url, and item[1]=changed param
-            if payloaded_urls:
-                url_reqs = self.make_url_reqs(orig_url, payloaded_urls, quote_enclosure, None)
-                if url_reqs:
-                    reqs += url_reqs
+        #if '=' in orig_url:
+        payloaded_urls = self.make_URLs(orig_url, payloads) # list of tuples where item[0]=url, and item[1]=changed param
+        if payloaded_urls:
+            url_reqs = self.make_url_reqs(orig_url, payloaded_urls, quote_enclosure, None)
+            if url_reqs:
+                reqs += url_reqs
 
         # Each Request here will be given a specific callback relative to whether it was URL variables or form inputs that were XSS payloaded
         return reqs
@@ -262,7 +262,35 @@ class XSSspider(CrawlSpider):
         return
 
     def make_URLs(self, url, payloads):
-        ''' Add links with variables in them to the queue again but with XSS testing payloads '''
+        ''' Add links with variables in them to the queue again but with XSS testing payloads 
+        Will return a tuple: (url, injection point, payload) '''
+
+        # If URL has variables, payload them
+        if '=' in url:
+            payloaded_urls = self.payload_url_vars(url, payloads) 
+        # If URL has no variables, tack payload onto end of URL
+        else:
+            payloaded_urls = self.payload_end_of_url(url, payloads)
+
+        if payloaded_urls:
+            return payloaded_urls
+
+    def payload_end_of_url(self, url, payloads):
+        ''' Payload the end of the URL to catch some DOM and other reflected XSSes '''
+        payloaded_urls = []
+
+        for payload in payloads:
+            if url[-1] == '/':
+                payloaded_url = url+payload
+            else:
+                payloaded_url = url+'/'+payload
+            payloaded_urls.append((payloaded_url, 'end of URL', payload))
+
+        if len(payloaded_urls) > 0:
+            return payloaded_urls
+
+    def payload_url_vars(self, url, payloads):
+        ''' Payload the URL variables '''
         payloaded_urls = []
         params = self.getURLparams(url)
         modded_params = self.change_params(params, payloads)
