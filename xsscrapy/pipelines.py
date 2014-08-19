@@ -9,9 +9,7 @@ import re
 class XSSCharFinder(object):
     def __init__(self):
         self.test_str = '9zqjx'
-        self.tag_pld = '()=<>'
         self.js_pld = '\'"(){}[];'
-        self.redir_pld = 'JaVAscRIPT:prompt(99)'
         self.url_param_xss_items = []
 
     def process_item(self, item, spider):
@@ -51,7 +49,7 @@ class XSSCharFinder(object):
                 item['error'] = err
 
             for idx, match in enumerate(matches):
-                unfiltered_chars = spider.get_unfiltered_chars(match, escaped_payload)
+                unfiltered_chars = self.get_unfiltered_chars(match, escaped_payload)
                 if unfiltered_chars:
                     try:
                         line, tag, attr, attr_val = spider.parse_injections(injections[idx])
@@ -62,11 +60,12 @@ class XSSCharFinder(object):
 
                     joined_chars = ''.join(unfiltered_chars)
                     chars = set(joined_chars)
-                    line_html = spider.get_inj_line(body, match, item)
+                    line_html = self.get_inj_line(body, match)
 
                     ###### XSS RULES ########
 
                     # If there's more XSS matches than harmless injections, we still want to check for the most dangerous characters
+                    # May see some false positives here, but better than false negatives
                     if mismatch == True:
                         if '>' in escaped_payload and '<' in escaped_payload:
                             if '<' in joined_chars and '>' in joined_chars:
@@ -130,6 +129,37 @@ class XSSCharFinder(object):
         # In case it slips by all of the filters, then we move on
         raise DropItem('No XSS vulns in %s' % resp_url)
 
+    def get_inj_line(self, body, payload):
+        lines = []
+        html_lines = body.splitlines()
+        for idx, line in enumerate(html_lines):
+            line = line.strip()
+            if payload in line:
+                #if len(line) > 500:
+                #    line = line[:200]+'...'
+                num_txt = (idx, line)
+                lines.append(num_txt)
+
+        if len(lines) > 0:
+            return lines
+
+    def get_unfiltered_chars(self, match, escaped_payload):
+        ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point '''
+        unfiltered_chars = []
+
+        # Make sure js payloads remove escaped ' and "
+        escaped_chars = re.findall(r'\\(.)', match)
+        for escaped_char in escaped_chars:
+            if escaped_char not in ['x', 'u']: # x and u for hex and unicode like \x43, \u0022
+                match = match.replace(escaped_char, '')
+
+        for c in escaped_payload:
+            if c in match:
+                unfiltered_chars.append(c)
+
+        if len(unfiltered_chars) > 0:
+            return unfiltered_chars
+
     def make_item(self, joined_chars, xss_type, orig_payload, tag, orig_url, inj_point, line, POST_to, item):
         ''' Create the vulnerable item '''
 
@@ -180,16 +210,12 @@ class XSSCharFinder(object):
         with open('formatted-vulns.txt', 'a+') as f:
             f.write('\n')
 
-            if 'error' in item:
-                f.write('Error: '+item['error']+'\n')
-                spider.log('    Error: '+item['error'], level='INFO')
+            f.write('URL: '+item['url']+'\n')
+            spider.log('    URL: '+item['url'], level='INFO')
 
             if 'POST_to' in item:
                 f.write('POST url: '+item['POST_to']+'\n')
                 spider.log('    POST url: '+item['POST_to'], level='INFO')
-
-            f.write('URL: '+item['url']+'\n')
-            spider.log('    URL: '+item['url'], level='INFO')
 
             f.write('Unfiltered: '+item['unfiltered']+'\n')
             spider.log('    Unfiltered: '+item['unfiltered'], level='INFO')
@@ -206,3 +232,8 @@ class XSSCharFinder(object):
             for line in item['line']:
                 f.write('Line: '+line[1]+'\n')
                 spider.log('    Line: '+line[1], level='INFO')
+
+            if 'error' in item:
+                f.write('Error: '+item['error']+'\n')
+                spider.log('    Error: '+item['error'], level='INFO')
+

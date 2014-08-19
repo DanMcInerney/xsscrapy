@@ -1,13 +1,11 @@
 # -- coding: utf-8 --
 
+#from scrapy.selector import HtmlXPathSelector
 from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
-#from scrapy.selector import HtmlXPathSelector
-from scrapy.http import Request, FormRequest
-
+from scrapy.http import FormRequest, Request
 from xsscrapy.items import vuln, inj_resp
 from loginform import fill_login_form
-
 from urlparse import urlparse, parse_qsl
 import lxml.html
 import lxml.etree
@@ -45,10 +43,9 @@ class XSSspider(CrawlSpider):
         hostname = urlparse(self.start_urls[0]).hostname
         self.allowed_domains = ['.'.join(hostname.split('.')[-2:])] # adding [] around the value seems to allow it to crawl subdomain of value
         self.test_str = '9zqjx'
-        self.tag_pld = '()=<>'
+        self.test_pld = '\'"()=<x>'
         self.js_pld = '\'"(){}[];'
         self.redir_pld = 'JaVAscRIPT:prompt(99)'
-        #attr_pld = generated once injection points are found (requires checking if single or double quotes ends html attribute values)
 
         self.login_user = kwargs.get('user')
         self.login_pass = kwargs.get('pw')
@@ -201,6 +198,8 @@ class XSSspider(CrawlSpider):
                 if type(i).__name__ not in ['InputElement', 'TextareaElement']:
                     continue
                 if type(i).__name__ == 'InputElement':
+                    # Don't change values for the below types because they
+                    # won't be strings
                     if i.type == 'password':
                         continue
                     if i.type == 'checkbox':
@@ -413,8 +412,6 @@ class XSSspider(CrawlSpider):
     def xss_str_generator(self, injections, quote_enclosure, inj_type):
         ''' This is where the injection points are analyzed and specific payloads are created '''
 
-        event_attrs = self.event_attributes()
-        attr_pld = quote_enclosure+self.tag_pld
         payloads = []
 
         for i in injections:
@@ -425,32 +422,14 @@ class XSSspider(CrawlSpider):
                 if attr == 'href' and attr_val == self.test_str:
                     if self.redir_pld not in payloads:
                         payloads.append(self.redir_pld)
-                # Test for javacsript running attributes
-                if attr in event_attrs:
-                    if self.js_pld not in payloads:
-                        payloads.append(self.js_pld)
-
-                # Test for normal attribute-based XSS (needs either ' or " to be unescaped depending on which char the value is wrapped in
-                if attr_pld not in payloads:
-                    payloads.append(attr_pld)
-
-            # Between tag XSS payloads
             else:
                 # Test for embedded js xss
                 if tag == 'script' and self.js_pld not in payloads:
                     payloads.append(self.js_pld)
-                # Test for normal between tag XSS (no quotes necessary)
-                if self.tag_pld not in payloads:
-                    payloads.append(self.tag_pld)
 
-        # attribute payload is equal to tag payload just with a quote attached so
-        # this eliminates some overlap
-        if self.tag_pld in payloads and attr_pld in payloads:
-            payloads.remove(self.tag_pld)
-
-        # I don't think URL encoding the dangerous chars is all that important
-        #if inj_type == 'url':
-        #    #payloads.append(urllib.quote_plus(payloads[0]))
+            # Test for normal XSS
+            if self.test_pld not in payloads:
+                payloads.append(self.test_pld)
 
         payloads = self.delim_payloads(payloads)
         if len(payloads) > 0:
@@ -479,20 +458,6 @@ class XSSspider(CrawlSpider):
             item['POST_to'] = POST_to
         return item
 
-    def get_inj_line(self, body, payload, item):
-        lines = []
-        html_lines = body.splitlines()
-        for idx, line in enumerate(html_lines):
-            line = line.strip()
-            if payload in line:
-                #if len(line) > 500:
-                #    line = line[:200]+'...'
-                num_txt = (idx, line)
-                lines.append(num_txt)
-
-        if len(lines) > 0:
-            return lines
-
     def parse_injections(self, injection):
         attr = None
         attr_val = None
@@ -503,24 +468,6 @@ class XSSspider(CrawlSpider):
             attr_val = injection[3]
 
         return line, tag, attr, attr_val
-
-    def get_unfiltered_chars(self, match, escaped_payload):
-        ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point '''
-        unfiltered_chars = []
-
-        # Make sure js payloads remove escaped ' and "
-        #if escaped_payload == self.js_pld:
-        escaped_chars = re.findall(r'\\(.)', match)
-        for escaped_char in escaped_chars:
-            if escaped_char not in ['x', 'u']: # x and u for hex and unicode \x43, \u0022
-                match = match.replace(escaped_char, '')
-
-        for c in escaped_payload:
-            if c in match:
-                unfiltered_chars.append(c)
-
-        if len(unfiltered_chars) > 0:
-            return unfiltered_chars
 
     def unescape_payload(self, payload):
         ''' Unescape the various payload encodings (html and url encodings)'''
@@ -636,7 +583,7 @@ class XSSspider(CrawlSpider):
         return reqs
 
     def payloaded_reqs(self, response):
-
+        ''' Create the payloaded requests '''
         body = response.body
         orig_url = response.meta['orig_url']
         try:
@@ -691,7 +638,8 @@ class XSSspider(CrawlSpider):
 
     def make_form_reqs(self, orig_url, forms, payloads, quote_enclosure, injections):
         ''' Logic: Get forms, find injectable input values, confirm at least one value has been injected,
-        confirm that value + url + POST/GET has not been made into a request before, finally send the request '''
+        confirm that value + url + POST/GET has not been made into a request before, finally send the request 
+        Note: if you see lots and lots of errors when POSTing, it is probably because of captchas'''
         reqs = []
         vals_urls_meths = []
 
@@ -711,6 +659,7 @@ class XSSspider(CrawlSpider):
                     cb = self.xss_chars_finder
 
                 # POST to both the orig url and the specified form action='http://url.com' url
+                # Just to prevent false negatives
                 if url != orig_url:
                     urls = [url, orig_url]
                 else:
@@ -722,7 +671,7 @@ class XSSspider(CrawlSpider):
                                   formdata=values,
                                   method=method,
                                   meta={'payload':payload,
-                                        'inj_point':'form field names: '+form_fields,
+                                        'inj_point':'form field names - '+form_fields,
                                         'injections':injections,
                                         'quote':quote_enclosure,
                                         'orig_url':orig_url,
