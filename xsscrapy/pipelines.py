@@ -3,6 +3,7 @@
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 from scrapy.exceptions import DropItem
+import HTMLParser
 from xsscrapy.items import vuln#, inj_resp
 import re
 
@@ -34,7 +35,7 @@ class XSSCharFinder(object):
         else:
             POST_to = None
         orig_payload = response.meta['payload'].strip(self.test_str) # xss char payload
-        escaped_payload = spider.unescape_payload(orig_payload)
+        escaped_payload = self.unescape_payload(orig_payload)
 
         break_tag_chars = set(['>', '<', '(', ')'])
         break_attr_chars = set([quote_enclosure, '(', ')'])
@@ -109,12 +110,12 @@ class XSSCharFinder(object):
         re_payload = '.{1}?'+re_payload
         full_matches = re.findall(re_payload, body)
         for f in full_matches:
-            unescaped_match = ''.join(spider.get_unfiltered_chars(f, escaped_payload))
+            unescaped_match = ''.join(self.get_unfiltered_chars(f, escaped_payload))
             if unescaped_match == escaped_payload:
                 #if '\\' == unescaped_match[0]:
                 #    continue
                 item['error'] = 'Response passed injection point specific search without success, checked for exact payload match in body (higher chance of false positive here)'
-                item['line'] = spider.get_inj_line(body, f, item)
+                item['line'] = self.get_inj_line(body, f, item)
                 item['xss_payload'] = orig_payload
                 item['unfiltered'] = escaped_payload
                 item['inj_point'] = inj_point
@@ -128,6 +129,18 @@ class XSSCharFinder(object):
         #    print  k, item[k]
         # In case it slips by all of the filters, then we move on
         raise DropItem('No XSS vulns in %s' % resp_url)
+
+    def unescape_payload(self, payload):
+        ''' Unescape the various payload encodings (html and url encodings)'''
+        if '%' in payload:
+            payload = urllib.unquote_plus(payload)
+            #if '%' in payload: # in case we ever add double url encoding like %2522 for dub quote
+            #    payload = urllib.unquote_plus(payload)
+        # only html-encoded payloads will have & in them
+        payload = HTMLParser.HTMLParser().unescape(payload)
+
+        return payload
+
 
     def get_inj_line(self, body, payload):
         lines = []

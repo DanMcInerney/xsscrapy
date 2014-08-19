@@ -13,7 +13,6 @@ import urllib
 import re
 import sys
 import cgi
-import HTMLParser
 import requests
 
 from IPython import embed
@@ -468,17 +467,6 @@ class XSSspider(CrawlSpider):
             attr_val = injection[3]
 
         return line, tag, attr, attr_val
-
-    def unescape_payload(self, payload):
-        ''' Unescape the various payload encodings (html and url encodings)'''
-        if '%' in payload:
-            payload = urllib.unquote_plus(payload)
-            #if '%' in payload: # in case we ever add double url encoding like %2522 for dub quote
-            #    payload = urllib.unquote_plus(payload)
-        # only html-encoded payloads will have & in them
-        payload = HTMLParser.HTMLParser().unescape(payload)
-
-        return payload
 
     def parse_attr_xpath(self, xpath):
         attr_inj = []
