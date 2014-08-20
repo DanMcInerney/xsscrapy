@@ -27,7 +27,7 @@ class XSSCharFinder(object):
         body = response.body
         # Regex: ( ) mean group 1 is within the parens, . means any char, {1,75} means match any char 1 to 25 times
         #chars_between_delims = '%s(.{1,75}?)%s' % (self.test_str, self.test_str)
-        chars_between_delims = '%s(.+?)%s' % (self.test_str, self.test_str)
+        chars_between_delims = '%s(.{0,50}?)%s' % (self.test_str, self.test_str)
         inj_num = len(injections)
         mismatch = False
         if xss_type == 'form':

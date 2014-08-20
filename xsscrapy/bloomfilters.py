@@ -7,7 +7,7 @@ class BloomURLDupeFilter(BaseDupeFilter):
 
     def __init__(self, path=None):
         self.file = None
-        self.fingerprints = BloomFilter(2000000, 0.00001)
+        self.fingerprints = BloomFilter(3000000, 0.0001)
 
     @classmethod
     def from_settings(cls, settings):

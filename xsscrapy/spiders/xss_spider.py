@@ -1,7 +1,7 @@
 # -- coding: utf-8 --
 
 #from scrapy.selector import HtmlXPathSelector
-from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
+from scrapy.contrib.linkextractors import LinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.http import FormRequest, Request
 from xsscrapy.items import vuln, inj_resp
@@ -33,14 +33,15 @@ class XSSspider(CrawlSpider):
     # uncomment the rule below and comment the shorter one right after to
     # prevent yourself from being logged out automatically
     #rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
-    rules = (Rule(SgmlLinkExtractor(), callback='parse_resp', follow=True), )
+    rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
 
     def __init__(self, *args, **kwargs):
-        # run using: scrapy crawl xss_spider -a url='http://something.com'
+        # run using: scrapy crawl xss_spider -a url='http://example.com'
         super(XSSspider, self).__init__(*args, **kwargs)
         self.start_urls = [kwargs.get('url')]
         hostname = urlparse(self.start_urls[0]).hostname
         self.allowed_domains = ['.'.join(hostname.split('.')[-2:])] # adding [] around the value seems to allow it to crawl subdomain of value
+        print self.allowed_domains
         self.test_str = '9zqjx'
         self.test_pld = '\'"()=<x>'
         self.js_pld = '\'"(){}[];'
