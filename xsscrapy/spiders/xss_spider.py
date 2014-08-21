@@ -136,9 +136,9 @@ class XSSspider(CrawlSpider):
             reqs += header_reqs
 
         # Edit the cookies; easier to do this in separate function from make_header_reqs()
-        cookie_reqs = self.make_cookie_reqs(orig_url, payloads, 'cookie', quote_enclosure, None)
-        if cookie_reqs:
-            reqs += cookie_reqs
+        #cookie_reqs = self.make_cookie_reqs(orig_url, payloads, 'cookie', quote_enclosure, None)
+        #if cookie_reqs:
+        #    reqs += cookie_reqs
 
         # Fill out forms with xss strings
         if forms:
