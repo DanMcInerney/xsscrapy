@@ -12,6 +12,10 @@ If you wish to login then crawl:
 
 Output is stored in formatted-urls.txt.
 
+FAQ
+-------
+
+* If it gives an error : ```ImportError: cannot import name LinkExtractor```. This means that you don't have the latest version of scrapy. You can install it using: ```sudo pip install --upgrade scrapy```.
 
 License
 -------
