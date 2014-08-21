@@ -115,7 +115,7 @@ class XSSCharFinder(object):
                 #if '\\' == unescaped_match[0]:
                 #    continue
                 item['error'] = 'Response passed injection point specific search without success, checked for exact payload match in body (higher chance of false positive here)'
-                item['line'] = self.get_inj_line(body, f, item)
+                item['line'] = self.get_inj_line(body, f)
                 item['xss_payload'] = orig_payload
                 item['unfiltered'] = escaped_payload
                 item['inj_point'] = inj_point
@@ -148,8 +148,6 @@ class XSSCharFinder(object):
         for idx, line in enumerate(html_lines):
             line = line.strip()
             if payload in line:
-                #if len(line) > 500:
-                #    line = line[:200]+'...'
                 num_txt = (idx, line)
                 lines.append(num_txt)
 

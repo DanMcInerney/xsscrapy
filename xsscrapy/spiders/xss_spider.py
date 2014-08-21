@@ -4,7 +4,7 @@
 from scrapy.contrib.linkextractors import LinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.http import FormRequest, Request
-from xsscrapy.items import vuln, inj_resp
+from xsscrapy.items import inj_resp
 from loginform import fill_login_form
 from urlparse import urlparse, parse_qsl
 import lxml.html
@@ -118,10 +118,10 @@ class XSSspider(CrawlSpider):
         try:
             doc = lxml.html.fromstring(body, base_url=orig_url)
         except lxml.etree.ParserError:
-            self.log('Parse error on %s' % orig_url)
+            self.log('ParserError from lxml on %s' % orig_url)
             return
         except lxml.etree.XMLSyntaxError:
-            self.log('XML syntax error on %s' % orig_url)
+            self.log('XMLSyntaxError from lxml on %s' % orig_url)
             return
 
         forms = doc.xpath('//form')
@@ -134,6 +134,11 @@ class XSSspider(CrawlSpider):
         header_reqs = self.make_header_reqs(orig_url, payloads, header, quote_enclosure, None)
         if header_reqs:
             reqs += header_reqs
+
+        # Edit the cookies; easier to do this in separate function from make_header_reqs()
+        cookie_reqs = self.make_cookie_reqs(orig_url, payloads, 'cookie', quote_enclosure, None)
+        if cookie_reqs:
+            reqs += cookie_reqs
 
         # Fill out forms with xss strings
         if forms:
@@ -557,6 +562,25 @@ class XSSspider(CrawlSpider):
         if len(reqs) > 0:
             return reqs
 
+    def make_cookie_reqs(self, url, payloads, inj_point, quote_enclosure, injections):
+        ''' Generate payloaded cookie header requests '''
+
+        reqs = [Request(url,
+                        meta={'type':'cookie',
+                              #'dont_merge_cookies':True,
+                              'inj_point':inj_point,
+                              'orig_url':url,
+                              'payload':payload,
+                              'quote':quote_enclosure},
+                        cookies={'payload':payload},
+                        dont_filter=True)
+                        for payload in payloads]
+
+        reqs = self.add_callback(injections, reqs)
+
+        if len(reqs) > 0:
+            return reqs
+
     def add_callback(self, injections, reqs):
         ''' Add the callback to the requests depending on if it's a test req or payloaded req '''
 
@@ -605,10 +629,15 @@ class XSSspider(CrawlSpider):
                 xss_payloads = self.xss_str_generator(injections, quote_enclosure, inj_type)
                 if xss_payloads:
 
-                    if inj_type == 'header':
+                    if inj_type == 'header' :
                         header_reqs = self.make_header_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
                         if header_reqs:
                             reqs += header_reqs
+
+                    elif inj_type == 'cookie':
+                        cookie_reqs = self.make_cookie_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
+                        if cookie_reqs:
+                            reqs += cookie_reqs
 
                     elif inj_type == 'url':
                         payloaded_urls = self.make_URLs(orig_url, xss_payloads) # list of tuples where item[0]=url, item[1]=changed param, item[2]=payload
@@ -702,125 +731,3 @@ class XSSspider(CrawlSpider):
         item = inj_resp()
         item['resp'] = response
         return item
-
-
-
-
-#    def single_or_double_quote(self, body):
-#        ''' Determine if the html attributes are enclosed with " or \' '''
-#        squote = re.findall('.=(\')', body)
-#        dquote = re.findall('.=(")', body)
-#        if len(squote) > len(dquote):
-#            quote = "'"
-#        else:
-#            quote = '"'
-#
-#        return quote
-
-
- #   def make_cookie_reqs(self, orig_url, payloaded_cookies, payloads, quote, cookies):
- #       reqs = []
-
- #       if payloads[0] == self.test_str:
- #           cb = self.payloaded_reqs
- #       else:
- #           cb = self.xss_chars_finder
-
- #       if self.start_url_cookie_xssed == False:
- #           u = urlparse(self.start_urls[0])
- #           base_start_url = u.scheme+'://'+u.hostname
- #           urls = [orig_url]+[base_start_url]
- #           self.start_url_cookie_xssed = True
- #       else:
- #           urls = [orig_url]
-
- #       for url in urls:
- #           reqs += [Request(url,
- #                            meta={'payload':payload,
- #                                  'type':'header',
- #                                  'inj_point':'cookie',
- #                                  'quote':quote,
- #                                  'orig_url':orig_url,
- #                                  'cookies':cookies},
- #                            cookies=payloaded_cookie,
- #                            callback=cb,
- #                            dont_filter=True)
- #                            for payloaded_cookie in payloaded_cookies
- #                            for payload in payloads]
-
- #       if len(reqs) > 0:
- #           for r in reqs:
- #               if r.callback == self.xss_chars_finder:
- #                   self.log('Sending payloaded cookies to %s' % r.url)
- #           return reqs
-
- #   def payload_cookies(self, cookies, payloads):
- #       ''' Add payload to each cookie value '''
- #       all_cookies = []
- #       payloaded_cookie_dict = {}
-
- #       for payload in payloads:
- #           for cookie in cookies:
- #               c = Cookie.SimpleCookie(cookie)
- #               for k in c:
- #                   c[k].value = c[k].value+payload
- #                   payloaded_cookie_dict[k] = c[k].value
-
- #           all_cookies.append(payloaded_cookie_dict)
- #           payloaded_cookie_dict = {}
-
- #       if len(all_cookies) > 0:
- #           return all_cookies
-
-
- #                   if headers[0] == 'cookie':
- #                       cookies = response.meta['cookies']
- #                       c_payloads = self.make_cookie_payloads(payloads)
- #                       payloaded_cookies = self.payload_cookies(cookies, c_payloads)
- #                       cookie_reqs = self.make_cookie_reqs(orig_url, payloaded_cookies, c_payloads, quote_enclosure, cookies) # Headers = None
- #                       if cookie_reqs:
- #                           reqs += cookie_reqs
-
-        # Get any cookies
-        # It seems to be up and working (no thorough testing) but the cons are outweighing the pros for inclusion
-        # Changing the cookies often leads to error pages or automatically sending the payloaded cookies
-        # for responses that shouldn't be payloaded. All this plus it's a barely-exploitable refl xss anyway
-        #cookies = response.headers.getlist('Set-Cookie')
-
-        ## Make sure the cookie isn't already payloaded
-        #for c in cookies:
-        #    if self.test_str in c:
-        #        cookies = None
-        #        break
-
-        #if cookies:
-        #    payloaded_cookies = self.payload_cookies(cookies, payloads)
-        #    if payloaded_cookies:
-        #        cookie_reqs = self.make_cookie_reqs(orig_url, payloaded_cookies, payloads, quote_enclosure, cookies)
-        #        reqs += cookie_reqs
-
-#    def make_cookie_dict(self, cookies):
-#        cookie_dict = {}
-#        for c in cookies:
-#            cookie = Cookie.SimpleCookie(c)
-#            for k in cookie:
-#                cookie_dict[k] = cookie[k]+s
-#            try:
-#                var, val = c.split(';', 1)[0].split('=', 1)
-#                cookie_dict[var] = val
-#            except Exception as e:
-#                print str(e)
-#                continue
-#
-#        if len(cookie_dict) > 0:
-#            return cookie_dict
-#
-
-#    def make_cookie_payloads(self, payloads):
-#        new_ploads = []
-#        for p in payloads:
-#            p.replace('"', '\"').replace("'", "\'")
-#            #p = '"'+p+'"'
-#            new_ploads.append(p)
-#        return new_ploads
-
