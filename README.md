@@ -15,9 +15,7 @@ Output is stored in formatted-urls.txt.
 
 Dependencies
 -------
-pip install scrapy
-pip install pybloom
-pip install requests
+pip install scrapy pybloom requests
 
 
 FAQ
