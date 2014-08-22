@@ -7,6 +7,10 @@ from scrapy.http import FormRequest, Request
 from xsscrapy.items import inj_resp
 from loginform import fill_login_form
 from urlparse import urlparse, parse_qsl
+
+from scrapy.http.cookies import CookieJar
+from cookielib import Cookie
+
 import lxml.html
 import lxml.etree
 import urllib
@@ -23,7 +27,8 @@ __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 TO DO
 -LONGTERM add static js analysis (check retire.js project)
 -cleanup xss_chars_finder(self, response)
--prevent Requests from being URL encoded (line 57 of __init__ in Requests class)
+-prevent Requests from being URL encoded; line 57 of __init__ in Requests
+class, I think, but I monkeypatched that and it didn't seem to work?)
 '''
 
 class XSSspider(CrawlSpider):
@@ -41,7 +46,6 @@ class XSSspider(CrawlSpider):
         self.start_urls = [kwargs.get('url')]
         hostname = urlparse(self.start_urls[0]).hostname
         self.allowed_domains = ['.'.join(hostname.split('.')[-2:])] # adding [] around the value seems to allow it to crawl subdomain of value
-        print self.allowed_domains
         self.test_str = '9zqjx'
         self.test_pld = '\'"()=<x>'
         self.js_pld = '\'"(){}[];'
@@ -508,7 +512,7 @@ class XSSspider(CrawlSpider):
         return anytext_inj
 
     def event_attributes(self):
-        ''' HTML tag attributes that allow javascript '''
+        ''' HTML tag attributes that allow javascript TAKEN OUT AT THE MOMENT'''
 
         event_attributes = ['onafterprint', 'onbeforeprint', 'onbeforeunload', 'onerror',
                             'onhaschange', 'onload', 'onmessage', 'onoffline', 'ononline',
@@ -562,21 +566,42 @@ class XSSspider(CrawlSpider):
         if len(reqs) > 0:
             return reqs
 
+    def make_cookiejar(self, payload, url):
+        ''' Make the payloaded cookiejar WORK IN PROGRESS'''
+
+        hostname = urlparse(url).hostname
+        domain = '.'.join(hostname.split('.')[-2:])
+
+        cookieJar = CookieJar()
+
+        # Version, name, value, port, port_specified, domain, domain_specified,
+        # domain_initial_dot, path, path_specified, secure, expires, discard,
+        # comment, comment_url, rest
+        c = Cookie(0, payload, None, None, False, domain, False, False, '/',
+                   True, False, None, True, None, None, None)
+
+        cookieJar.set_cookie(c)
+
+        return cookieJar
+
     def make_cookie_reqs(self, url, payloads, inj_point, quote_enclosure, injections):
         ''' Generate payloaded cookie header requests '''
 
         reqs = [Request(url,
                         meta={'type':'cookie',
-                              #'dont_merge_cookies':True,
+                              'dont_merge_cookies':True,
+                              'cookiejar':self.make_cookiejar(payload, url),
                               'inj_point':inj_point,
                               'orig_url':url,
                               'payload':payload,
                               'quote':quote_enclosure},
-                        cookies={'payload':payload},
                         dont_filter=True)
                         for payload in payloads]
 
         reqs = self.add_callback(injections, reqs)
+
+        for r in reqs:
+            print r, r.meta['cookiejar'], r.cookies
 
         if len(reqs) > 0:
             return reqs
