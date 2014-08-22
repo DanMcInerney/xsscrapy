@@ -12,6 +12,14 @@ If you wish to login then crawl:
 
 Output is stored in formatted-urls.txt.
 
+
+Dependencies
+-------
+pip install scrapy
+pip install pybloom
+pip install requests
+
+
 FAQ
 -------
 
