@@ -37,7 +37,7 @@ class XSSspider(CrawlSpider):
     # If you're logging into a site with a logout link, you'll want to
     # uncomment the rule below and comment the shorter one right after to
     # prevent yourself from being logged out automatically
-    #rules = (Rule(SgmlLinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
+    #rules = (Rule(LinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
     rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
 
     def __init__(self, *args, **kwargs):
@@ -162,10 +162,11 @@ class XSSspider(CrawlSpider):
         return reqs
 
     def encode_payloads(self, payloads, method):
-        ''' HTML encode the payload and URL encode it if the form method is GET '''
-        html_encoded = cgi.escape(payloads[0], quote=True)
-        if html_encoded != payloads[0]:
-            payloads.append(html_encoded)
+        ''' Until I can get the request url to not be URL encoded, script will
+        not encode payloads '''
+        #html_encoded = cgi.escape(payloads[0], quote=True)
+        #if html_encoded != payloads[0]:
+        #    payloads.append(html_encoded)
 
         # I don't think URL encoding the dangerous chars is all that important
         #if method == 'GET':

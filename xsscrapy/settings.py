@@ -29,7 +29,7 @@ DUPEFILTER_CLASS = 'xsscrapy.bloomfilters.BloomURLDupeFilter'
 ITEM_PIPELINES = {'xsscrapy.pipelines.XSSCharFinder':100}
 
 #FEED_FORMAT = 'csv'
-#FEED_URI = 'items.txt'
+#FEED_URI = 'vulnerable-urls.txt'
 
-CONCURRENT_REQUESTS = 12
+CONCURRENT_REQUESTS = 30
 
