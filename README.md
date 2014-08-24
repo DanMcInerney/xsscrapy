@@ -24,6 +24,14 @@ Dependencies
 pip install -r requirements.txt
 ```
 
+Tests
+-------
+* Cookies
+* User-Agent
+* Referer
+* URL variables
+* End of URL
+* Forms both hidden and explicit
 
 FAQ
 -------
