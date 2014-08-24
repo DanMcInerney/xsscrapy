@@ -14,7 +14,6 @@ class XSSCharFinder(object):
         self.url_param_xss_items = []
 
     def process_item(self, item, spider):
-
         response = item['resp']
         item = vuln()
 
@@ -25,8 +24,9 @@ class XSSCharFinder(object):
         inj_point = response.meta['inj_point']
         resp_url = response.url
         body = response.body
-        # Regex: ( ) mean group 1 is within the parens, . means any char, {1,75} means match any char 1 to 25 times
-        #chars_between_delims = '%s(.{1,75}?)%s' % (self.test_str, self.test_str)
+        # Regex: ( ) mean group 1 is within the parens, . means any char,
+        # {1,50} means match any char 1 to 50 times
+        #chars_between_delims = '%s(.{1,50}?)%s' % (self.test_str, self.test_str)
         chars_between_delims = '%s(.{0,50}?)%s' % (self.test_str, self.test_str)
         inj_num = len(injections)
         mismatch = False
@@ -125,10 +125,8 @@ class XSSCharFinder(object):
                     item['POST_to'] = POST_to
                 return item
 
-        #for k in item:
-        #    print  k, item[k]
         # In case it slips by all of the filters, then we move on
-        raise DropItem('No XSS vulns in %s' % resp_url)
+        raise DropItem('No XSS vulns in %s. Tested: type = %s, injection point = %s' % (resp_url, xss_type, inj_point))
 
     def unescape_payload(self, payload):
         ''' Unescape the various payload encodings (html and url encodings)'''
@@ -140,7 +138,6 @@ class XSSCharFinder(object):
         payload = HTMLParser.HTMLParser().unescape(payload)
 
         return payload
-
 
     def get_inj_line(self, body, payload):
         lines = []

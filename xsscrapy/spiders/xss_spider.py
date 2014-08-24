@@ -140,9 +140,9 @@ class XSSspider(CrawlSpider):
             reqs += header_reqs
 
         # Edit the cookies; easier to do this in separate function from make_header_reqs()
-        #cookie_reqs = self.make_cookie_reqs(orig_url, payloads, 'cookie', quote_enclosure, None)
-        #if cookie_reqs:
-        #    reqs += cookie_reqs
+        cookie_reqs = self.make_cookie_reqs(orig_url, payloads, 'cookie', quote_enclosure, None)
+        if cookie_reqs:
+            reqs += cookie_reqs
 
         # Fill out forms with xss strings
         if forms:
@@ -209,13 +209,8 @@ class XSSspider(CrawlSpider):
                 if type(i).__name__ == 'InputElement':
                     # Don't change values for the below types because they
                     # won't be strings
-                    if i.type == 'password':
-                        continue
-                    if i.type == 'checkbox':
-                        continue
-                    if i.type == 'radio':
-                        continue
-                    if i.type == 'submit':
+                    nonstrings = ['checkbox', 'radio', 'submit']
+                    if i.type in nonstrings:
                         continue
                 if i.name:
                     form.fields[i.name] = payload
@@ -273,11 +268,11 @@ class XSSspider(CrawlSpider):
         ''' Add links with variables in them to the queue again but with XSS testing payloads 
         Will return a tuple: (url, injection point, payload) '''
 
-        # If URL has variables, payload them
         if '=' in url:
+            # If URL has variables, payload them
             payloaded_urls = self.payload_url_vars(url, payloads) 
-        # If URL has no variables, tack payload onto end of URL
         else:
+            # If URL has no variables, tack payload onto end of URL
             payloaded_urls = self.payload_end_of_url(url, payloads)
 
         if payloaded_urls:
@@ -566,42 +561,22 @@ class XSSspider(CrawlSpider):
         if len(reqs) > 0:
             return reqs
 
-    def make_cookiejar(self, payload, url):
-        ''' Make the payloaded cookiejar WORK IN PROGRESS'''
-
-        hostname = urlparse(url).hostname
-        domain = '.'.join(hostname.split('.')[-2:])
-
-        cookieJar = CookieJar()
-
-        # Version, name, value, port, port_specified, domain, domain_specified,
-        # domain_initial_dot, path, path_specified, secure, expires, discard,
-        # comment, comment_url, rest
-        c = Cookie(0, payload, None, None, False, domain, False, False, '/',
-                   True, False, None, True, None, None, None)
-
-        cookieJar.set_cookie(c)
-
-        return cookieJar
-
     def make_cookie_reqs(self, url, payloads, inj_point, quote_enclosure, injections):
         ''' Generate payloaded cookie header requests '''
 
         reqs = [Request(url,
-                        meta={'type':'cookie',
-                              'dont_merge_cookies':True,
-                              'cookiejar':self.make_cookiejar(payload, url),
+                        meta={'type':'header',
+                              #'dont_merge_cookies':True,
+                              'cookiejar':CookieJar(),
                               'inj_point':inj_point,
                               'orig_url':url,
                               'payload':payload,
                               'quote':quote_enclosure},
+                        cookies={'cookie_test':payload},
                         dont_filter=True)
                         for payload in payloads]
 
         reqs = self.add_callback(injections, reqs)
-
-        for r in reqs:
-            print r, r.meta['cookiejar'], r.cookies
 
         if len(reqs) > 0:
             return reqs
@@ -655,14 +630,16 @@ class XSSspider(CrawlSpider):
                 if xss_payloads:
 
                     if inj_type == 'header' :
-                        header_reqs = self.make_header_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
-                        if header_reqs:
-                            reqs += header_reqs
-
-                    elif inj_type == 'cookie':
-                        cookie_reqs = self.make_cookie_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
-                        if cookie_reqs:
-                            reqs += cookie_reqs
+                        # Make XSS payloaded cookie reqs
+                        if inj_point == 'cookie':
+                            cookie_reqs = self.make_cookie_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
+                            if cookie_reqs:
+                                reqs += cookie_reqs
+                        # Make XSS payloaded header reqs (user agent or referer)
+                        else:
+                            header_reqs = self.make_header_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
+                            if header_reqs:
+                                reqs += header_reqs
 
                     elif inj_type == 'url':
                         payloaded_urls = self.make_URLs(orig_url, xss_payloads) # list of tuples where item[0]=url, item[1]=changed param, item[2]=payload
@@ -756,3 +733,22 @@ class XSSspider(CrawlSpider):
         item = inj_resp()
         item['resp'] = response
         return item
+
+    #def make_cookiejar(self, payload, url):
+    #    ''' Make the payloaded cookiejar WORK IN PROGRESS'''
+
+    #    hostname = urlparse(url).hostname
+    #    domain = '.'.join(hostname.split('.')[-2:])
+
+    #    cookieJar = CookieJar()
+
+    #    # Version, name, value, port, port_specified, domain, domain_specified,
+    #    # domain_initial_dot, path, path_specified, secure, expires, discard,
+    #    # comment, comment_url, rest
+    #    c = Cookie(0, payload, None, None, False, domain, False, False, '/',
+    #               True, False, None, True, None, None, None)
+
+    #    cookieJar.set_cookie(c)
+
+    #    return cookieJar
+
