@@ -1,11 +1,11 @@
 # -- coding: utf-8 --
 
-#from scrapy.selector import HtmlXPathSelector
 from scrapy.contrib.linkextractors import LinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.http import FormRequest, Request
+#from xsscrapy.http import Request
 from xsscrapy.items import inj_resp
-from loginform import fill_login_form
+from xsscrapy.loginform import fill_login_form
 from urlparse import urlparse, parse_qsl
 
 from scrapy.http.cookies import CookieJar
@@ -18,8 +18,6 @@ import re
 import sys
 import cgi
 import requests
-
-from IPython import embed
 
 __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
@@ -734,22 +732,3 @@ class XSSspider(CrawlSpider):
         item = inj_resp()
         item['resp'] = response
         return item
-
-    #def make_cookiejar(self, payload, url):
-    #    ''' Make the payloaded cookiejar WORK IN PROGRESS'''
-
-    #    hostname = urlparse(url).hostname
-    #    domain = '.'.join(hostname.split('.')[-2:])
-
-    #    cookieJar = CookieJar()
-
-    #    # Version, name, value, port, port_specified, domain, domain_specified,
-    #    # domain_initial_dot, path, path_specified, secure, expires, discard,
-    #    # comment, comment_url, rest
-    #    c = Cookie(0, payload, None, None, False, domain, False, False, '/',
-    #               True, False, None, True, None, None, None)
-
-    #    cookieJar.set_cookie(c)
-
-    #    return cookieJar
-
