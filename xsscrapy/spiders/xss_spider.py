@@ -3,10 +3,11 @@
 from scrapy.contrib.linkextractors import LinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.http import FormRequest, Request
+from scrapy.selector import Selector
 #from xsscrapy.http import Request
 from xsscrapy.items import inj_resp
 from xsscrapy.loginform import fill_login_form
-from urlparse import urlparse, parse_qsl
+from urlparse import urlparse, parse_qsl, urljoin
 
 from scrapy.http.cookies import CookieJar
 from cookielib import Cookie
@@ -55,9 +56,9 @@ class XSSspider(CrawlSpider):
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
         u = urlparse(response.url)
-        base_url = u.scheme+'://'+u.hostname
-        robots_url = base_url+'/robots.txt'
-        robot_req = [Request(robots_url, callback=self.robot_parser, meta={'base_url':base_url})]
+        self.base_url = u.scheme+'://'+u.hostname
+        robots_url = self.base_url+'/robots.txt'
+        robot_req = [Request(robots_url, callback=self.robot_parser)]
 
         reqs = self.parse_resp(response)
         reqs += robot_req
@@ -95,7 +96,6 @@ class XSSspider(CrawlSpider):
     def robot_parser(self, response):
         ''' Parse the robots.txt file and create Requests for the disallowed domains '''
         disallowed_urls = set([])
-        base_url = response.meta['base_url']
         for line in response.body.splitlines():
             if 'disallow: ' in line.lower():
                 try:
@@ -103,9 +103,9 @@ class XSSspider(CrawlSpider):
                 except IndexError:
                     # In case Disallow: has no value after it
                     continue
-                disallowed = base_url+address
+                disallowed = self.base_url+address
                 disallowed_urls.add(disallowed)
-        reqs = [Request(u, callback=self.parse_resp) for u in disallowed_urls if u != base_url]
+        reqs = [Request(u, callback=self.parse_resp) for u in disallowed_urls if u != self.base_url]
         for r in reqs:
             self.log('Added robots.txt disallowed URL to our queue: '+r.url)
         return reqs
@@ -131,6 +131,11 @@ class XSSspider(CrawlSpider):
         payload = self.test_str
         payloads = [payload]
 
+        # Grab iframe source urls if they are part of the start_url page
+        iframe_reqs = self.make_iframe_reqs(doc, orig_url)
+        if iframe_reqs:
+            reqs += iframe_reqs
+
         # Edit a few select headers with injection string and resend request
         header = 'Referer'
         header_reqs = self.make_header_reqs(orig_url, payloads, header, quote_enclosure, None)
@@ -149,7 +154,6 @@ class XSSspider(CrawlSpider):
                 reqs += form_reqs
 
         # Test URL variables with xss strings
-        #if '=' in orig_url:
         payloaded_urls = self.make_URLs(orig_url, payloads) # list of tuples where item[0]=url, and item[1]=changed param
         if payloaded_urls:
             url_reqs = self.make_url_reqs(orig_url, payloaded_urls, quote_enclosure, None)
@@ -158,6 +162,30 @@ class XSSspider(CrawlSpider):
 
         # Each Request here will be given a specific callback relative to whether it was URL variables or form inputs that were XSS payloaded
         return reqs
+
+    def make_iframe_reqs(self, doc, orig_url):
+        parsed_url = urlparse(orig_url)
+        iframe_reqs = []
+        iframes = doc.xpath('//iframe/@src')
+        for i in iframes:
+            if type(i) == unicode:
+                i = str(i).strip()
+            # Nonrelative path
+            if '://' in i:
+                # Skip iframes to outside sources
+                try:
+                    if self.base_url not in i[:len(self.base_url)+1]:
+                        continue
+                except IndexError:
+                    continue
+            # Relative path
+            else:
+                url = urljoin(orig_url, i)
+
+            iframe_reqs.append(Request(url))
+
+        if len(iframe_reqs) > 0:
+            return iframe_reqs
 
     def encode_payloads(self, payloads, method):
         ''' Until I can get the request url to not be URL encoded, script will
