@@ -13,6 +13,10 @@ BOT_NAME = 'xsscrapy'
 SPIDER_MODULES = ['xsscrapy.spiders']
 NEWSPIDER_MODULE = 'xsscrapy.spiders'
 
+# For adding javascript rendering
+#DOWNLOAD_HANDLERS = {'http':'xsscrapy.scrapyjs.dhandler.WebkitDownloadHandler',
+#                     'https': 'xsscrapy.scrapyjs.dhandler.WebkitDownloadHandler'}
+
 # 100 (first): Make sure there's no duplicate requests that have some value changed
 # 200 (second): Make sure there's a random working User-Agent header set if that value's not injected with the test string
 DOWNLOADER_MIDDLEWARES = {'xsscrapy.middlewares.InjectedDupeFilter': 100,

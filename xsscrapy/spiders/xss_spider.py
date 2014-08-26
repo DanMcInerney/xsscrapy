@@ -56,7 +56,7 @@ class XSSspider(CrawlSpider):
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
         u = urlparse(response.url)
-        self.base_url = u.scheme+'://'+u.hostname
+        self.base_url = u.scheme+'://'+u.netloc
         robots_url = self.base_url+'/robots.txt'
         robot_req = [Request(robots_url, callback=self.robot_parser)]
 
@@ -164,9 +164,13 @@ class XSSspider(CrawlSpider):
         return reqs
 
     def make_iframe_reqs(self, doc, orig_url):
+        ''' Grab the <iframe src=...> attribute and add those URLs to the
+        queue should they be within the start_url domain '''
+
         parsed_url = urlparse(orig_url)
         iframe_reqs = []
         iframes = doc.xpath('//iframe/@src')
+        url = None
         for i in iframes:
             if type(i) == unicode:
                 i = str(i).strip()
@@ -174,15 +178,16 @@ class XSSspider(CrawlSpider):
             if '://' in i:
                 # Skip iframes to outside sources
                 try:
-                    if self.base_url not in i[:len(self.base_url)+1]:
-                        continue
+                    if self.base_url in i[:len(self.base_url)+1]:
+                        url = i
                 except IndexError:
                     continue
             # Relative path
             else:
                 url = urljoin(orig_url, i)
 
-            iframe_reqs.append(Request(url))
+            if url:
+                iframe_reqs.append(Request(url))
 
         if len(iframe_reqs) > 0:
             return iframe_reqs
@@ -324,12 +329,12 @@ class XSSspider(CrawlSpider):
         payloaded_urls = []
         params = self.getURLparams(url)
         modded_params = self.change_params(params, payloads)
-        hostname, protocol, doc_domain, path = self.url_processor(url)
-        if hostname and protocol and path:
+        netloc, protocol, doc_domain, path = self.url_processor(url)
+        if netloc and protocol and path:
             for payload in modded_params:
                 for params in modded_params[payload]:
                     joinedParams = urllib.urlencode(params, doseq=1) # doseq maps the params back together
-                    newURL = urllib.unquote(protocol+hostname+path+'?'+joinedParams)
+                    newURL = urllib.unquote(protocol+netloc+path+'?'+joinedParams)
 
                     # Prevent nonpayloaded URLs
                     if self.test_str not in newURL:
@@ -393,7 +398,7 @@ class XSSspider(CrawlSpider):
             return
 
     def url_processor(self, url):
-        ''' Get the url domain, protocol, and hostname using urlparse '''
+        ''' Get the url domain, protocol, and netloc using urlparse '''
         try:
             parsed_url = urlparse(url)
             # Get the path
@@ -402,13 +407,15 @@ class XSSspider(CrawlSpider):
             protocol = parsed_url.scheme+'://'
             # Get the hostname (includes subdomains)
             hostname = parsed_url.hostname
+            # Get netlock (domain.com:8080)
+            netloc = parsed_url.netloc
             # Get doc domain
             doc_domain = '.'.join(hostname.split('.')[-2:])
         except:
             self.log('Could not parse url: '+url)
             return
 
-        return (hostname, protocol, doc_domain, path)
+        return (netloc, protocol, doc_domain, path)
 
     def inj_points(self, payload, doc):
         ''' Use some xpaths to find injection points in the lxml-formatted doc '''
