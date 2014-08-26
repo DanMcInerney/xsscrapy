@@ -25,8 +25,8 @@ class XSSCharFinder(object):
         resp_url = response.url
         body = response.body
         # Regex: ( ) mean group 1 is within the parens, . means any char,
-        # {1,50} means match any char 1 to 50 times
-        #chars_between_delims = '%s(.{1,50}?)%s' % (self.test_str, self.test_str)
+        # {1,50} means match any char 0 to 50 times
+        #chars_between_delims = '%s(.{0,50}?)%s' % (self.test_str, self.test_str)
         chars_between_delims = '%s(.{0,50}?)%s' % (self.test_str, self.test_str)
         inj_num = len(injections)
         mismatch = False

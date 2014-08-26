@@ -137,12 +137,8 @@ class XSSspider(CrawlSpider):
             reqs += iframe_reqs
 
         # Edit a few select headers with injection string and resend request
-        test_headers = []
-        test_headers.append('Referer')
-        if 'UA' in response.meta:
-            if response.meta['UA'] in body:
-                test_headers.append('User-Agent')
-        header_reqs = self.make_header_reqs(orig_url, payloads, test_headers, quote_enclosure, None)
+        header = 'Referer'
+        header_reqs = self.make_header_reqs(orig_url, payloads, header, quote_enclosure, None)
         if header_reqs:
             reqs += header_reqs
 
@@ -425,20 +421,20 @@ class XSSspider(CrawlSpider):
         ''' Use some xpaths to find injection points in the lxml-formatted doc '''
         injections = []
 
-        #anywhere_text sometimes throws unicode error
-        anywhere_text =[]
-
         attr_xss = doc.xpath("//@*[contains(., '%s')]" % payload)
         text_xss = doc.xpath("//*[contains(text(), '%s')]" % payload)
-        comment_xss = doc.xpath("//comment()")
-        anywhere_text = doc.xpath("//text()")
-        #try:
-        #except UnicodeDecodeError:
-        #    self.log('Could not utf8 decode character, continuing anyway')
+        comment_xss = doc.xpath("//comment()")# % payload)
 
         attr_inj = self.parse_attr_xpath(attr_xss)
         tag_inj = self.parse_tag_xpath(text_xss)
+
         comm_inj = self.parse_comm_xpath(comment_xss, payload)
+        # If the response page is just plain text then tag_inj might miss some reflected payloads
+        try:
+            anywhere_text = doc.xpath("//text()")
+        except UnicodeDecodeError:
+            self.log('Could not utf8 decode character')
+            return
         any_text_inj = self.parse_anytext_xpath(anywhere_text, payload)
 
         injects = [attr_inj, tag_inj, comm_inj, any_text_inj]
@@ -597,34 +593,23 @@ class XSSspider(CrawlSpider):
         if reqs:
             return reqs
 
-    def make_header_reqs(self, url, payloads, inj_headers, quote_enclosure, injections):
+    def make_header_reqs(self, url, payloads, header, quote_enclosure, injections):
         ''' Generate header requests '''
 
-        if type(inj_headers) == str:
-            inj_headers = [inj_headers]
-
         reqs = [Request(url,
-                        headers={inj_header:payload},
+                        headers={header:payload},
                         meta={'type':'header',
-                              'inj_point':inj_header,
+                              'inj_point':header,
                               'orig_url':url,
                               'payload':payload,
-                              'quote':quote_enclosure,
-                              'UA':self.get_user_agent(inj_header, payload)},
+                              'quote':quote_enclosure},
                         dont_filter=True)
-                for payload in payloads
-                for inj_header in inj_headers]
+                for payload in payloads]
 
         reqs = self.add_callback(injections, reqs)
 
         if len(reqs) > 0:
             return reqs
-
-    def get_user_agent(self, header, payload):
-        if header == 'User-Agent':
-            return payload
-        else:
-            return ''
 
     def make_cookie_reqs(self, url, payloads, inj_point, quote_enclosure, injections):
         ''' Generate payloaded cookie header requests '''
@@ -673,42 +658,50 @@ class XSSspider(CrawlSpider):
         reqs = []
         inj_type = response.meta['type']
         inj_point = response.meta['inj_point'] #header name for header req, just 'form' for form req, url param for url req
-        payload = response.meta['payload']
+        payloads = [response.meta['payload']]
         quote_enclosure = response.meta['quote']
         ua = response.meta['UA']
-        ref = response.request.url
         forms = doc.xpath('//form')
         resp_url = response.url
 
-        injections = self.inj_points(payload, doc)
-        if injections:
+        # Check if the user agent is reflected in the source code
+        if ua in body:
+            payloads += [ua]
 
-            xss_payloads = self.xss_str_generator(injections, quote_enclosure, inj_type)
-            if xss_payloads:
+        for payload in payloads:
+            injections = self.inj_points(payload, doc)
+            if injections:
 
-                if inj_type == 'header' :
-                    # Make XSS payloaded cookie reqs
-                    if inj_point == 'cookie':
-                        cookie_reqs = self.make_cookie_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
-                        if cookie_reqs:
-                            reqs += cookie_reqs
-                    # Make XSS payloaded header reqs (user agent or referer)
-                    else:
-                        header_reqs = self.make_header_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
-                        if header_reqs:
-                            reqs += header_reqs
+                if payload == ua:
+                    inj_type = 'header'
+                    inj_point = 'User-Agent'
 
-                elif inj_type == 'url':
-                    payloaded_urls = self.make_URLs(orig_url, xss_payloads) # list of tuples where item[0]=url, item[1]=changed param, item[2]=payload
-                    if payloaded_urls:
-                        url_reqs = self.make_url_reqs(orig_url, payloaded_urls, quote_enclosure, injections)
-                        if url_reqs:
-                            reqs += url_reqs
+                xss_payloads = self.xss_str_generator(injections, quote_enclosure, inj_type)
+                if xss_payloads:
 
-                elif inj_type == 'form':
-                    form_reqs = self.make_form_reqs(orig_url, forms, xss_payloads, quote_enclosure, injections)
-                    if form_reqs:
-                        reqs += form_reqs
+                    if inj_type == 'header' :
+                        # Make XSS payloaded cookie reqs
+                        if inj_point == 'cookie':
+                            cookie_reqs = self.make_cookie_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
+                            if cookie_reqs:
+                                reqs += cookie_reqs
+                        # Make XSS payloaded header reqs (user agent or referer)
+                        else:
+                            header_reqs = self.make_header_reqs(orig_url, xss_payloads, inj_point, quote_enclosure, injections)
+                            if header_reqs:
+                                reqs += header_reqs
+
+                    elif inj_type == 'url':
+                        payloaded_urls = self.make_URLs(orig_url, xss_payloads) # list of tuples where item[0]=url, item[1]=changed param, item[2]=payload
+                        if payloaded_urls:
+                            url_reqs = self.make_url_reqs(orig_url, payloaded_urls, quote_enclosure, injections)
+                            if url_reqs:
+                                reqs += url_reqs
+
+                    elif inj_type == 'form':
+                        form_reqs = self.make_form_reqs(orig_url, forms, xss_payloads, quote_enclosure, injections)
+                        if form_reqs:
+                            reqs += form_reqs
 
         if len(reqs) > 0:
             return reqs

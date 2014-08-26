@@ -20,16 +20,14 @@ class RandomUserAgentMiddleware(object):
     ''' Use a random user-agent for each request '''
     def process_request(self, request, spider):
         ua = random.choice(USER_AGENT_LIST)
-        if 'User-Agent' in request.headers:
-            # Make sure we're not testing the UA for injection before setting a random UA
-            if '9zqjx' not in request.headers['User-Agent']:
-                request.headers.setdefault('User-Agent', ua)
-                request.meta['UA'] = ua
-        else:
-            request.headers.setdefault('User-Agent', ua)
-            request.meta['UA'] = ua
+        if 'payload' in request.meta:
+            payload = request.meta['payload']
+            if 'User-Agent' in request.headers:
+                if payload == request.headers['User-Agent']:
+                    return
 
-        return
+        request.headers.setdefault('User-Agent', ua)
+        request.meta['UA'] = ua
 
 class InjectedDupeFilter(object):
     ''' Filter duplicate payloaded URLs, headers, and forms since all of those have dont_filter = True '''
@@ -83,27 +81,3 @@ class InjectedDupeFilter(object):
 
             HEADERS_SEEN.add(u_h_p)
             return
-
-class Test(object):
-    def process_request(self, request, spider):
-        print '   UA:', request.headers['User-Agent']
-
-#def new_process_request(self, request, spider):
-#    if 'dont_merge_cookies' in request.meta:
-#        return
-#
-#    cl = request.headers.getlist('Cookie')
-#    cookiejarkey = request.meta.get("cookiejar")
-#    jar = self.jars[cookiejarkey]
-#    cookies = self._get_request_cookies(jar, request)
-#    for cookie in cookies:
-#        jar.set_cookie_if_ok(cookie, request)
-#    # set Cookie header
-#    request.headers.pop('Cookie', None)
-#    jar.add_cookie_header(request)
-#
-#    #INSERT COOKIE MANIP HERE
-#
-#    self._debug_cookie(request, spider)
-
-#CookiesMiddleware.process_request = new_process_request
