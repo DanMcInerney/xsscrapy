@@ -95,6 +95,7 @@ class XSSCharFinder(object):
         split_body = body[:match_offset]
         payload = injection[1]
         delim = payload[:7]
+        print 'PAYLOAD', payload
 
         # Do comments first since they're just 1 char
         if tag == 'comment':
@@ -122,7 +123,7 @@ class XSSCharFinder(object):
         line = re.sub(payload, sub, line)
         line = line.replace('\\"', '').replace("\\'", "")
 
-        breakout_chars.append(set('>'))
+        breakout_chars.append(set(['<','>']))
 
         # Look for javascript breakouts
         if tag == 'script':
