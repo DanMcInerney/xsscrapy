@@ -38,9 +38,11 @@ class XSSCharFinder(object):
         if re_matches:
             scolon_matches = sorted([(m.start(), m.group()) for m in re.finditer(sc_full_match, body)])
             lxml_match_data = self.get_lxml_matches(full_match, body, resp_url, delim)
+
             if len(re_matches) != len(lxml_match_data):
-                print '***************MISMATCH**********************'
-                print resp_url
+                # Error in item won't be called since we overwrite the item later #####
+                print '         ***************MISMATCH**********************'
+                print '        ', resp_url
                 item['error'] = 'Mismatch: html parsed vs regex parsed injections, %d vs %d. Higher chance of false positive' % (len(injections), len(full_matches))
                 mismatch = True
 
@@ -58,7 +60,7 @@ class XSSCharFinder(object):
         # Catches DB errors
         #pl_lines_found = self.payloaded_lines(body, orig_payload)
         #if pl_lines_found:
-        #    print '\n\n\n      PLOADED LINES LAST REOSRT\n     %s %s %s \n\n\n' % (resp_url, meta['xss_place'], meta['xss_param'])
+        #    print '\n\n\n      LAST RESORT\n     %s %s %s \n\n\n' % (resp_url, meta['xss_place'], meta['xss_param'])
         #    return self.make_item(meta, resp_url, pl_lines_found, orig_payload)
         raise DropItem('No XSS vulns in %s. type = %s, %s, %s'% (resp_url, meta['xss_place'], meta['xss_param'], meta['payload']))
 
@@ -66,7 +68,6 @@ class XSSCharFinder(object):
         ''' XSS logic. Returns None if vulnerability not found 
         The breakout_chars var is a list(set()). This ensure we can
         test for breakout given OR statements, like " or ; to breakout'''
-        print 'xss_logic:', injection
 
         offset, payload, unfiltered, sourceline, tag, attr, attr_val = injection
 
@@ -172,10 +173,8 @@ class XSSCharFinder(object):
         for c in line:
             if c == '"':
                 dquote_open = self.opposite(dquote_open)
-                print 'dquote changed', dquote_open
             elif c == "'":
                 squote_open = self.opposite(squote_open)
-                print 'squote changed', squote_open
 
         return dquote_open, squote_open
 
@@ -258,16 +257,6 @@ class XSSCharFinder(object):
         if 'POST_to' in meta:
             item['POST_to'] = meta['POST_to'] 
 
-############### print shit ###################
-#        print ''
-#        print '    URL:', item['resp_url']
-#        print '    xss_place:', item['xss_place']
-#        print '    xss_param:', item['xss_param']
-#        print '       Line: ', item['lines']
-#        if 'error' in item:
-#            print '    Error:', item['error']
-#        print '------------------------------------------'
-#
         return item
 
     def parse_injections(self, injection):
@@ -391,64 +380,6 @@ class XSSCharFinder(object):
             oppo_quote = '"'
         return oppo_quote
 
-
-        # For js payloads, just count how many quotes there are
-       # elif payload == self.js_pld:
-       #     if '<' not in line:
-       #         # Then we can be almost sure it's pure JS
-       #         squote = re.findall('\'', line)
-       #         dquote = re.findall('"', line)
-       #        
-       #        if len(squote) == len(dquote):
-       #            #Guess the first quote that pops up as html attr quote
-       #            quote = re.search('(\'|")', line)
-
-       #            if 
-
-
-       #            return quote, js_quote
-
-
-
-
-       #         if len(squote) > len(dquote):
-       #             quote = squote[0]
-       #             js_quote = dquote[0]
-       #         else:
-       #             quote = dquote[0]
-       #             js_quote = squote[0]
-
-       #             return quote, js_quote
-   #         else:
-   #             squote = re.findall('\'', line)
-   #             dquote = re.findall('"', line)
-   #     # For tag or attribute payloads, count how many quotes after = there are
-   #     else:
-   #         squote = re.findall('.=(\')', line)
-   #         dquote = re.findall('.=(")', line)
-
-   #     # If no quotes are found on the line then search the body
-   #     if len(squote) == 0 and len(dquote) == 0:
-   #         if payload == self.js_pld:
-   #             squote = re.findall('\'', body)
-   #             dquote = re.findall('"', body)
-   #         # For tag or attribute payloads, count how many quotes after = there are
-   #         else:
-   #             squote = re.findall('.=(\')', body)
-   #             dquote = re.findall('.=(")', body)
-
-   #     if len(squote) > len(dquote):
-   #         quote = "'"
-   #     else:
-   #         quote = '"'
-
-   #     if quote == '"':
-   #         js_quote = "'"
-   #     else:
-   #         js_quote = '"'
-
-        return quote, js_quote
-
     def get_unfiltered_chars(self, payload, delim):
         ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point '''
 
@@ -550,182 +481,3 @@ class XSSCharFinder(object):
 #            nearest_tag_offset = re.search('[a-zA-Z]+?<', reverse_body).end()
 #            tag_to_payload = split_body[-nearest_tag_offset:]
 #            print 'TAG TO PAYLOAD', tag_to_payload
-
-        # Check the entire body for exact match
-        # Escape out all the special regex characters to search for the payload in the html body
-       # re_payload = escaped_payload.replace('(', '\(').replace(')', '\)').replace('"', '\\"').replace("'", "\\'")
-       # re_payload = re_payload.replace('{', '\{').replace('}', '\}').replace(']', '\]').replace('[', '\[')
-       # re_payload = '.{1}?'+re_payload
-       # full_matches = re.findall(re_payload, body)
-       # for f in full_matches:
-       #     unescaped_match = ''.join(self.get_unfiltered_chars(f, escaped_payload))
-       #     if unescaped_match == escaped_payload:
-       #         #if '\\' == unescaped_match[0]:
-       #         #    continue
-       #         item['error'] = 'Response passed injection point specific search without success, checked for exact payload match in body (higher chance of false positive here)'
-       #         item['line'] = self.get_inj_line(body, f)[0]
-       #         item['xss_payload'] = orig_payload
-       #         item['unfiltered'] = escaped_payload
-       #         item['xss_param'] = xss_param
-       #         item['xss_place'] = xss_place
-       #         item['url'] = meta['orig_url']
-       #         if POST_to:
-       #             item['POST_to'] = POST_to
-       #         print 'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOoo           MARKER'
-       #         return item
-
-#        unfiltered_chars = [''.join(self.get_unfiltered_chars(match, orig_payload))
-#                           for match in re.findall(chars_between_delims, body)]
-#        match_offsets = [m.start() for m in re.finditer(full_match, body)]
-#        offset_unfil_chars = zip(match_offsets, unfiltered_chars)
-#
-#        for x in offset_unfil_chars:
-#            index = 0
-#            index += 1
-#            offset = x[0]
-#            unfil_chars = x[1]
-#            context_str = re.subn(chars_between_delims, 'xxx',body[:offset])[0]
-#            if context_str[-1] in ['"', "'"]:
-#                breakout = context_str[-1]
-#                print context_str
-#                print '        *****    BREAKOUT =', breakout
-#
-#        for line in body.splitlines():
-#            matches = re.findall(chars_between_delims, line)
-#            if matches:
-#                for match in enumerate(matches):
-#                    unfiltered_chars = self.get_unfiltered_chars(match, escaped_payload)
-#                    if unfiltered_chars:
-#                        joined_chars = ''.join(unfiltered_chars)
-#                        chars = set(joined_chars)
-#
-#                        ###### XSS RULES ########
-#                        # Process the line and failing that process the body
-#                        line_html, quote, js_quote = process_body(body, match, escaped_payload)
-#
-#                        print 'quote: ', quote
-#                        print 'js_quote: ', js_quote
-#
-#                        break_tag_chars = set(['>', '<'])
-#                        break_attr_chars = set([quote])
-#                        break_js_chars = set([js_quote, ';'])
-#
-#                        # Redirect
-#                        if self.redir_pld.lower() == escaped_payload.lower():
-#                            if attr == 'href' and orig_payload.lower() == match.lower():
-#                                item = self.make_item(joined_chars, xss_place, orig_payload, tag, meta['orig_url'], xss_param, line_html, POST_to, item)
-#                                item = self.url_item_filtering(item, spider)
-#                                return item
-#                            if tag == 'frame' and attr == 'src':
-#                                if orig_payload.lower() == match.lower():
-#                                    item = self.make_item(joined_chars, xss_place, orig_payload, tag, meta['orig_url'], xss_param, line_html, POST_to, item)
-#                                    item = self.url_item_filtering(item, spider)
-#                                    return item
-#
-#                        # JS breakout
-#                        elif self.js_pld == escaped_payload: #js chars
-#                            if break_js_chars.issubset(chars):
-#                                item = self.make_item(joined_chars, xss_place, orig_payload, tag, meta['orig_url'], xss_param, line_html, POST_to, item)
-#                                item = self.url_item_filtering(item, spider)
-#                                return item
-#
-#                        # Attribute breakout
-#                        if attr:
-#                            if quote in escaped_payload:
-#                                if break_attr_chars.issubset(chars):
-#                                    item = self.make_item(joined_chars, xss_place, orig_payload, tag, meta['orig_url'], xss_param, line_html, POST_to, item)
-#                                    item = self.url_item_filtering(item, spider)
-#                                    return item
-#
-#                        # Tag breakout
-#                        else:
-#                            if '<' and '>' in escaped_payload:
-#                                if break_tag_chars.issubset(chars):
-#                                    item = self.make_item(joined_chars, xss_place, orig_payload, tag, meta['orig_url'], xss_param, line_html, POST_to, item)
-#                                    item = self.url_item_filtering(item, spider)
-#                                    return item
-#
-#        # In case it slips by all of the filters, then we move on
-#        raise DropItem('No XSS vulns in %s. Tested: type = %s, injection point = %s' % (resp_url, xss_place, xss_param))
-
-#    def get_quote_enclosure(self, search_txt, match, payload):
-#        ''' Figure out which quote is for JS and which is for html '''
-#
-#        if '"' in search_txt or "'" in search_txt:
-#            # At least one quote in in the body or line
-#            # See if there's any html attributes in the line
-#            # If there's no attr_quote then just go to the next test
-#            attr_quotes = re.findall(r'<\w[^>]\w+=(.)', a)
-#            if attr_quote:
-#                for q in attr_quote:
-#                    if q in ['"', "'"]:
-#                        quote = q
-#                        js_quote = self.oppo_quote(quote)
-#                        return quote, js_quote
-#
-#            # No html attribute quotes found
-#            ##if escaped_payload == self.js_pld:
-#
-#
-#
-#
-#
-#            #if payload == self.js_pld:
-#                #Then we know we're trying to look inside javascript
-#                if '<' not in line:
-#                    # Then we can be almost sure it's pure JS
-#                    quote = max(squote, dquote)
-#                    js_quote = get_js_quote(quote)
-#                    return quote, js_quote
-#                else:
-#
-#
-#
-#                #Quotes in line but payload == (redir or test_str)
-#                #Assuming test_str
-#                else:
-#                    quote, js_quote = quote_finder(search_txt)
-#
-#            # Quotes are only in the body
-#            else:
-#                quote = quote = re.search('(\'|")', search_txt)
-#                js_quote = oppo_quote(quote)
-#                return quote, js_quote
-#
-#        # Quotes are not in the body or the line
-#        else:
-#            quote = '"'
-#            js_quote = oppo_quote(quote)
-#            return quote, js_quote
-#
-#    def quote_finder(self, search_txt):
-#        ''' Search text for quote if you know it already has either ' or " '''
-#        squote = re.findall('\'', search_txt)
-#        dquote = re.findall('"', search_txt)
-#
-#        # Can't be zero
-#        if len(squote) == len(dquote):
-#            #Guess the first quote that pops up as html attr quote
-#            quote = re.search('(\'|")', search_txt)
-#            js_quote = oppo_quote(quote)
-#        else:
-#            # Return the higher number of results as the html quote 
-#            quote = max(squote, dquote)
-#            js_quote = get_js_quote(quote)
-#
-#        return quote, js_quote
-
-#    def make_item(self, meta joined_chars, xss_place, orig_payload, tag, meta['orig_url'], xss_param, line, item):
-#        ''' Create the vulnerable item '''
-#
-#        item['line'] = line
-#        item['xss_payload'] = orig_payload
-#        item['unfiltered'] = joined_chars
-#        item['xss_param'] = xss_param
-#        item['xss_place'] = xss_place
-#        item['inj_tag'] = tag
-#        item['url'] = meta['orig_url']
-#        if POST_to:
-#            item['POST_to'] = meta['POST_to'] 
-#        return item
-
