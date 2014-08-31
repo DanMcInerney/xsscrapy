@@ -8,12 +8,13 @@ from scrapy.item import Item, Field
 class vuln(Item):
     unfiltered = Field()
     xss_payload = Field()
-    xss_type = Field()
+    xss_place = Field()
     inj_tag = Field()
-    url = Field()
-    inj_point = Field()
+    orig_url = Field()
+    resp_url = Field()
+    xss_param = Field()
     error = Field()
-    line = Field()
+    lines = Field()
     POST_to = Field()
 
     def __str__(self):

@@ -35,12 +35,15 @@ class InjectedDupeFilter(object):
     def process_request(self, request, spider):
 
         meta = request.meta
-        if not 'type' in meta:
+        if 'xss_place' not in meta or 'delim' not in meta:
             return
+        delim = meta['delim']
 
         # Injected URL dupe handling
-        if meta['type'] == 'url':
-            url = request.url
+        if meta['xss_place'] == 'url':
+            #replace the delim characters with nothing so we only test the URL
+            #with the payload
+            url = request.url.replace(delim, '')
             if url in URLS_SEEN:
                 raise IgnoreRequest
 
@@ -51,9 +54,10 @@ class InjectedDupeFilter(object):
             return
 
         # Injected form dupe handling
-        elif meta['type'] == 'form':
+        elif meta['xss_place'] == 'form':
+            stripped_vals = [v[0].replace(delim, '') for v in meta['values']]
             u = request.url
-            v = meta['values']
+            v = stripped_vals
             m = request.method
             # URL, input, payload, values
             u_v_m = (u, v, m)
@@ -67,10 +71,10 @@ class InjectedDupeFilter(object):
             return
 
         # Injected header dupe handling
-        elif meta['type'] == 'header':
+        elif meta['xss_place'] == 'header':
             u = request.url
-            h = meta['inj_point']
-            p = meta['payload']
+            h = meta['xss_param']
+            p = meta['payload'].replace(delim, '')
             # URL, changed header, payload
             u_h_p = (u, h, p)
             if u_h_p in HEADERS_SEEN:
