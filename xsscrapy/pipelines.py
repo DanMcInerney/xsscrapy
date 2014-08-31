@@ -103,28 +103,30 @@ class XSSCharFinder(object):
         # Then check attribute breakouts
         elif attr:
             # tag == script: try ...
-            breakout_chars, line = self.attr_breakout(split_body, tag, attr, attr_val, delim)
+            breakout_chars, line = self.attr_breakout(split_body, tag, attr, attr_val, delim, payload)
 
         # Finally check between tag breakout
         else:
-            breakout_chars, line = self.tag_breakout(split_body, tag)
+            breakout_chars, line = self.tag_breakout(split_body, tag, payload)
 
         if breakout_chars:
             return breakout_chars, line
         else:
             return None, None
 
-    def tag_breakout(self, split_body, tag):
+    def tag_breakout(self, split_body, tag, payload):
         breakout_chars = []
         split_delim = '>'
+        sub = 'INJECTION'
         line = split_delim + split_body.split(split_delim)[-1] + 'INJECTION'
+        line = re.sub(payload, sub, line)
+        line = line.replace('\\"', '').replace("\\'", "")
 
         breakout_chars.append(set('>'))
 
         # Look for javascript breakouts
         if tag == 'script':
             # Get rid of javascript escaped quotes
-            line = line.replace('\\"', '').replace("\\'", "")
             dquote_open, squote_open = self.get_quote_context(line)
             if dquote_open:
                 breakout_chars.append(set(['"']))
@@ -136,11 +138,14 @@ class XSSCharFinder(object):
 
         return breakout_chars, line
 
-    def attr_breakout(self, split_body, tag, attr, attr_val, delim):
+    def attr_breakout(self, split_body, tag, attr, attr_val, delim, payload):
         breakout_chars = []
         #Find the nearest <tag
         split_delim = '<'+tag
+        sub = 'INJECTION'
         line = split_delim + split_body.split(split_delim)[-1] + 'INJECTION'
+        line = re.sub(payload, sub, line)
+        line = line.replace('\\"', '').replace("\\'", "")
         # Get rid of javascript escaped quotes
 
         # javascript:alert(1) vuln
@@ -155,6 +160,7 @@ class XSSCharFinder(object):
         # Check if quotes even exist in the line
         elif '"' in line or "'" in line:
             line = line.replace('\\"', '').replace("\\'", "")
+
             dquote_open, squote_open = self.get_quote_context(line)
             if dquote_open:
                 breakout_chars.append(set(['"']))
@@ -247,7 +253,7 @@ class XSSCharFinder(object):
         item = vuln()
         ''' Create the vuln item '''
 
-        item['lines'] = lines
+        item['lines'] = lines.strip()
         item['xss_payload'] = meta['payload'] + ';'
         item['unfiltered'] = unfiltered
         item['xss_param'] = meta['xss_param']
@@ -394,8 +400,10 @@ class XSSCharFinder(object):
             if c in self.test_str:
                 unfiltered_chars.append(c)
 
+        unfiltered_chars = ''.join(unfiltered_chars)
+
         if len(unfiltered_chars) > 0:
-            return ''.join(unfiltered_chars)
+            return unfiltered_chars
 
     def url_item_filtering(self, item, spider):
         ''' Make sure we're not just repeating the same URL XSS over and over '''

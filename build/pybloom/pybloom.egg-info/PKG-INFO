@@ -1,0 +1,22 @@
+Metadata-Version: 1.0
+Name: pybloom
+Version: 1.1
+Summary: PyBloom: A Probabilistic data structure
+Home-page: http://github.com/jaybaird/python-bloomfilter/
+Author: Jay Baird
+Author-email: jay.baird@me.com
+License: MIT License
+Description: 
+        pybloom is a Python implementation of the bloom filter probabilistic data
+        structure. The module also provides a Scalable Bloom Filter that allows a
+        bloom filter to grow without knowing the original set size.
+        
+Keywords: data structures,bloom filter,bloom,filter,probabilistic,set
+Platform: any
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Utilities
+Classifier: Topic :: Database :: Database Engines/Servers
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
