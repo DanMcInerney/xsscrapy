@@ -50,7 +50,7 @@ class XSSspider(CrawlSpider):
         self.delim = '9zqjx'
         # semi colon goes on end because sometimes it cuts stuff off like
         # gruyere or the second cookie dleim
-        self.test_str = '\'"(){}=<x>:'
+        self.test_str = '\'"(){}<x>:'
 
         self.login_user = kwargs.get('user')
         self.login_pass = kwargs.get('pw')
@@ -220,6 +220,12 @@ class XSSspider(CrawlSpider):
                     if i.type in nonstrings:
                         continue
                 if i.name:
+                    if i.name.lower() == '__viewstate':
+                        continue
+                    # Don't change csrf values. Maybe do this better?
+                    # Might cause false negatives (rare)
+                    if 'csrf' in i.name.lower():
+                        continue
                     form.fields[i.name] = payload
 
             values = form.form_values()
@@ -367,7 +373,7 @@ class XSSspider(CrawlSpider):
                               'orig_url':url,
                               'payload':payload,
                               'delim':delim_str},
-                        cookies={'cookie_test':payload},
+                        cookies={'userinput':payload},
                         callback=self.xss_chars_finder,
                         dont_filter=True)]
 
