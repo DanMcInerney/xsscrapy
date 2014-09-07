@@ -14,7 +14,7 @@ class vuln(Item):
     resp_url = Field()
     xss_param = Field()
     error = Field()
-    lines = Field()
+    line = Field()
     POST_to = Field()
 
     def __str__(self):

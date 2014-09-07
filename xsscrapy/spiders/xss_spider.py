@@ -4,7 +4,6 @@ from scrapy.contrib.linkextractors import LinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
 from scrapy.http import FormRequest, Request
 from scrapy.selector import Selector
-#from xsscrapy.http import Request
 from xsscrapy.items import inj_resp
 from xsscrapy.loginform import fill_login_form
 from urlparse import urlparse, parse_qsl, urljoin
@@ -12,8 +11,9 @@ from urlparse import urlparse, parse_qsl, urljoin
 from scrapy.http.cookies import CookieJar
 from cookielib import Cookie
 
-import lxml.html
+from lxml.html import soupparser, fromstring
 import lxml.etree
+import lxml.html
 import urllib
 import re
 import sys
@@ -120,6 +120,8 @@ class XSSspider(CrawlSpider):
         body = response.body
 
         try:
+            # You must use soupparser or else candyass webdevs who use identical 
+            # multiple html attributes with injections in them don't get caught
             doc = lxml.html.fromstring(body, base_url=orig_url)
         except lxml.etree.ParserError:
             self.log('ParserError from lxml on %s' % orig_url)
@@ -215,7 +217,7 @@ class XSSspider(CrawlSpider):
                     continue
                 if type(i).__name__ == 'InputElement':
                     # Don't change values for the below types because they
-                    # won't be strings
+                    # won't be strings and lxml will complain
                     nonstrings = ['checkbox', 'radio', 'submit']
                     if i.type in nonstrings:
                         continue
@@ -226,9 +228,24 @@ class XSSspider(CrawlSpider):
                     # Might cause false negatives (rare)
                     if 'csrf' in i.name.lower():
                         continue
-                    form.fields[i.name] = payload
+
+                    # Rare exception here on google
+                    # "File "/home/user/python/xsscrapy/xsscrapy/spiders/xss_spider.py", line 229, in fill_form
+                    # File "/usr/lib/python2.7/dist-packages/lxml/html/__init__.py", line 885, in __setitem__
+                    # self.inputs[item].value = value
+                    # File "/usr/lib/python2.7/dist-packages/lxml/html/__init__.py", line 1075, in _value__set
+                    # "There is no option with the value of %r" % value)
+                    # exceptions.ValueError: There is no option with the value of '9zqjxwb\'"(){}<x>:9zqjxwb;9'
+                    # WTF? Somehow form.fields[i.name] is being populated as the payload??
+                    try:
+                        form.fields[i.name] = payload
+                    except ValueError as e:
+                        print self.log(e)
 
             values = form.form_values()
+            #action = form.action
+            #if not action:
+            #    action = url
 
             return values, form.action or form.base_url, form.method
 
