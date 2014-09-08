@@ -1,18 +1,19 @@
 xsscrapy
 ========
 
+Fast, thorough, XSS spider. Give it a URL and it'll test every link it finds for cross-site scripting vulnerabilities. 
+
 From within the main folder run:
 
 ```
-scrapy crawl xsscrapy -a url='http://something.com'
+./xsscrapy.py -u http://something.com
 ```
 
 
 If you wish to login then crawl:
 
 ```
-scrapy crawl xsscrapy -a url='http://something.com/login_page' -a login=username \
-  -a pw=secret_password
+./xsscrapy.py -u http://something.com/login_page -l loginname -p pa$$word
 ```
 
 Output is stored in formatted-urls.txt.

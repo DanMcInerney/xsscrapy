@@ -22,6 +22,8 @@ import requests
 import string
 import random
 
+from IPython import embed
+
 __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
 '''
@@ -53,7 +55,12 @@ class XSSspider(CrawlSpider):
         self.test_str = '\'"(){}<x>:'
 
         self.login_user = kwargs.get('user')
+        if self.login_user == 'None':
+            self.login_user = None
         self.login_pass = kwargs.get('pw')
+        if self.login_pass == 'None':
+            self.login_pass = None
+        print '  login', self.login_user, 'passw', self.login_pass
 
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
@@ -184,6 +191,21 @@ class XSSspider(CrawlSpider):
 
         return payloads
 
+    def url_valid(self, url, orig_url):
+        # Make sure there's a form action url
+        if url == None:
+            self.log('No form action URL found')
+            return
+
+        # Sometimes lxml doesn't read the form.action right
+        if '://' not in url:
+            self.log('Form URL contains no scheme, attempting to put together a working form submissions URL')
+            proc_url = self.url_processor(orig_url)
+            url = proc_url[1]+proc_url[0]+url
+
+        return url
+
+
     def check_form_validity(self, values, url, payload, orig_url):
         ''' Make sure the form action url and values are valid/exist '''
 
@@ -304,9 +326,7 @@ class XSSspider(CrawlSpider):
             return iframe_reqs
 
     def make_form_reqs(self, orig_url, forms, payload):
-        ''' Logic: Get forms, find injectable input values, confirm at least one value has been injected,
-        confirm that value + url + POST/GET has not been made into a request before, finally send the request 
-        Note: if you see lots and lots of errors when POSTing, it is probably because of captchas'''
+        ''' Payload each form input in each input's own request '''
         reqs = []
         vals_urls_meths = []
 
@@ -315,66 +335,44 @@ class XSSspider(CrawlSpider):
         payload = delim_str + payload + delim_str + ';9'
 
         for form in forms:
-            #payloads = self.encode_payloads(new_payloads, form.method)
-            values, url, method = self.fill_form(orig_url, form, payload)
-            url = self.check_form_validity(values, url, payload, orig_url)
-            if not url:
-                continue
-            # Get form field names
-            form_fields = ', '.join([f for f in form.fields])
-
-            # POST to both the orig url and the specified form action='http://url.com' url
-            # Just to prevent false negatives
-            if url != orig_url:
-                urls = [url, orig_url]
-            else:
-                urls = [url]
-
-            # Make the payloaded requests
-            req = [FormRequest(url,
-                              formdata=values,
-                              method=method,
-                              meta={'payload':payload,
-                                    'xss_param':form_fields,
-                                    'orig_url':orig_url,
-                                    'forms':forms,
-                                    'xss_place':'form',
-                                    'POST_to':url,
-                                    'values':values,
-                                    'delim':delim_str},
-                              dont_filter=True,
-                              callback=self.xss_chars_finder)
-                    for url in urls]
-
-            reqs += req
+            if form.inputs:
+                method = form.method
+                url = form.action or form.base_url
+                if self.url_valid(url, orig_url) and method:
+                    for i in form.inputs:
+                        if i.name:
+                            #value = self.fill_form(orig_url, i, payload)
+                            if type(i).__name__ not in ['InputElement', 'TextareaElement']:
+                                continue
+                            if type(i).__name__ == 'InputElement':
+                                # Don't change values for the below types because they
+                                # won't be strings and lxml will complain
+                                nonstrings = ['checkbox', 'radio', 'submit']
+                                if i.type in nonstrings:
+                                    continue
+                            orig_val = form.fields[i.name]
+                            if orig_val == None:
+                                orig_val = ''
+                            form.fields[i.name] = payload
+                            xss_param = i.name
+                            values = form.form_values()
+                            req = FormRequest(url,
+                                              formdata=values,
+                                              method=method,
+                                              meta={'payload':payload,
+                                                    'xss_param':xss_param,
+                                                    'orig_url':orig_url,
+                                                    'xss_place':'form',
+                                                    'POST_to':url,
+                                                    'delim':delim_str},
+                                              dont_filter=True,
+                                              callback=self.xss_chars_finder)
+                            reqs.append(req)
+                            # Reset the value
+                            form.fields[i.name] = orig_val
 
         if len(reqs) > 0:
             return reqs
-
-    def make_form_payloads(self, response):
-        ''' Create the payloads based on the injection points from the first test request'''
-        orig_url = response.meta['orig_url']
-        payload = response.meta['payload']
-        #quote_enclosure = response.meta['quote']
-        xss_place = response.meta['xss_place']
-        forms = response.meta['forms']
-        delim = response.meta['delim']
-        body = response.body
-        resp_url = response.url
-        try:
-            doc = lxml.html.fromstring(body)
-        except lxml.etree.XMLSyntaxError:
-            self.log('XML Syntax Error on %s' % resp_url)
-            return
-
-        injections = self.xss_params(payload, doc)
-        if injections:
-            payloads = self.xss_str_generator(injections, delim)
-            if payloads:
-                form_reqs = self.make_form_reqs(orig_url, forms, payloads, injections)
-                if form_reqs:
-                    return form_reqs
-        return
 
     def make_cookie_reqs(self, url, payload, xss_param):
         ''' Generate payloaded cookie header requests '''

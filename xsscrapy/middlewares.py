@@ -46,42 +46,29 @@ class InjectedDupeFilter(object):
             url = request.url.replace(delim, '')
             if url in URLS_SEEN:
                 raise IgnoreRequest
-
-            if request.callback == spider.xss_chars_finder:
-                spider.log('Sending payloaded URL: %s' % url)
-
+            spider.log('Sending payloaded URL: %s' % url)
             URLS_SEEN.add(url)
             return
 
         # Injected form dupe handling
         elif meta['xss_place'] == 'form':
-            stripped_vals = [v[0].replace(delim, '') for v in meta['values']]
-            u = request.url
-            v = stripped_vals
-            m = request.method
-            # URL, input, payload, values
-            u_v_m = (u, v, m)
-            if u_v_m in FORMS_SEEN:
+            u = meta['POST_to']
+            p = meta['xss_param']
+            u_p = (u, p)
+            if u_p in FORMS_SEEN:
                 raise IgnoreRequest
-
-            if request.callback == spider.xss_chars_finder:
-                spider.log('Sending request for possibly vulnerable form to %s' % u)
-
-            FORMS_SEEN.add(u_v_m)
+            spider.log('Sending payloaded form param %s to: %s' % (p, u))
+            FORMS_SEEN.add(u_p)
             return
 
         # Injected header dupe handling
         elif meta['xss_place'] == 'header':
             u = request.url
             h = meta['xss_param']
-            p = meta['payload'].replace(delim, '')
             # URL, changed header, payload
-            u_h_p = (u, h, p)
-            if u_h_p in HEADERS_SEEN:
+            u_h = (u, h)
+            if u_h in HEADERS_SEEN:
                 raise IgnoreRequest
-
-            elif request.callback == spider.xss_chars_finder:
-                spider.log('Sending payloaded %s header, payload: %s' % (h, p))
-
-            HEADERS_SEEN.add(u_h_p)
+            spider.log('Sending payloaded %s header' % h)
+            HEADERS_SEEN.add(u_h)
             return

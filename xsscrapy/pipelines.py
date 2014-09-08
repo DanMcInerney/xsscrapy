@@ -87,7 +87,7 @@ class XSSCharFinder(object):
                     item['error'] = 'Payload delims do not surround this injection point. Found via search for entire payload.'
                 self.write_to_file(item, spider)
 
-        raise DropItem('No XSS vulns in %s. type = %s, %s, %s'% (resp_url, meta['xss_place'], meta['xss_param'], meta['payload']))
+        raise DropItem('No XSS vulns in %s. type = %s, %s' % (resp_url, meta['xss_place'], meta['xss_param']))
 
     def xss_logic(self, injection, meta, resp_url, error):
         ''' XSS logic. Returns None if vulnerability not found 
@@ -249,9 +249,8 @@ class XSSCharFinder(object):
             if tag in ['script', 'frame', 'iframe']:
                 breakout_chars.append(set([':', ')', '(']))
             else:
-                print '\n\n\n\n\n NO QUOTeS OPEN BUT FOUND INJECTION IN ATTRIBUTE TAG', tag, attr, attr_val, delim, payload, '\n\n\n\n\n'
-                # Hail mary, no quotes found but definitely inside attr
-                breakout_chars.append(set(['"', "'", ">", "<"]))
+                #No quotes found but definitely inside attr
+                breakout_chars.append(set([">", "<"]))
 
         return breakout_chars
 
