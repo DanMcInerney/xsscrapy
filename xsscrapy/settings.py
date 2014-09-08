@@ -35,5 +35,5 @@ ITEM_PIPELINES = {'xsscrapy.pipelines.XSSCharFinder':100}
 #FEED_FORMAT = 'csv'
 #FEED_URI = 'vulnerable-urls.txt'
 
-CONCURRENT_REQUESTS = 20
+CONCURRENT_REQUESTS = 30
 
