@@ -176,21 +176,6 @@ class XSSspider(CrawlSpider):
         # Each Request here will be given a specific callback relative to whether it was URL variables or form inputs that were XSS payloaded
         return reqs
 
-    def encode_payloads(self, payloads, method):
-        ''' Until I can get the request url to not be URL encoded, script will
-        not encode payloads '''
-        #html_encoded = cgi.escape(payloads[0], quote=True)
-        #if html_encoded != payloads[0]:
-        #    payloads.append(html_encoded)
-
-        # I don't think URL encoding the dangerous chars is all that important
-        #if method == 'GET':
-        #    url_encoded = urllib.quote_plus(payloads[0])
-        #    if url_encoded != payloads[0]:
-        #        payloads.append(url_encoded)
-
-        return payloads
-
     def url_valid(self, url, orig_url):
         # Make sure there's a form action url
         if url == None:
@@ -204,93 +189,6 @@ class XSSspider(CrawlSpider):
             url = proc_url[1]+proc_url[0]+url
 
         return url
-
-
-    def check_form_validity(self, values, url, payload, orig_url):
-        ''' Make sure the form action url and values are valid/exist '''
-
-        # Make sure there's a form action url
-        if url == None:
-            self.log('No form action URL found')
-            return
-
-        # Make sure there are values to even change
-        if len(values) == 0:
-            return
-
-        # Make sure at least one value has been injected
-        if not self.injected_val_confirmed(values, payload):
-            return
-
-        # Sometimes lxml doesn't read the form.action right
-        if '://' not in url:
-            self.log('Form URL contains no scheme, attempting to put together a working form submissions URL')
-            proc_url = self.url_processor(orig_url)
-            url = proc_url[1]+proc_url[0]+url
-
-        return url
-
-    def fill_form(self, url, form, payload):
-        ''' Fill out all relevant form input boxes with payload '''
-        if form.inputs:
-            for i in form.inputs:
-                # Only change the value of input and text boxes
-                if type(i).__name__ not in ['InputElement', 'TextareaElement']:
-                    continue
-                if type(i).__name__ == 'InputElement':
-                    # Don't change values for the below types because they
-                    # won't be strings and lxml will complain
-                    nonstrings = ['checkbox', 'radio', 'submit']
-                    if i.type in nonstrings:
-                        continue
-                if i.name:
-                    if i.name.lower() == '__viewstate':
-                        continue
-                    # Don't change csrf values. Maybe do this better?
-                    # Might cause false negatives (rare)
-                    if 'csrf' in i.name.lower():
-                        continue
-
-                    # Rare exception here on google
-                    # "File "/home/user/python/xsscrapy/xsscrapy/spiders/xss_spider.py", line 229, in fill_form
-                    # File "/usr/lib/python2.7/dist-packages/lxml/html/__init__.py", line 885, in __setitem__
-                    # self.inputs[item].value = value
-                    # File "/usr/lib/python2.7/dist-packages/lxml/html/__init__.py", line 1075, in _value__set
-                    # "There is no option with the value of %r" % value)
-                    # exceptions.ValueError: There is no option with the value of '9zqjxwb\'"(){}<x>:9zqjxwb;9'
-                    # WTF? Somehow form.fields[i.name] is being populated as the payload??
-                    try:
-                        form.fields[i.name] = payload
-                    except ValueError as e:
-                        print self.log(e)
-
-            values = form.form_values()
-            #action = form.action
-            #if not action:
-            #    action = url
-
-            return values, form.action or form.base_url, form.method
-
-    def injected_val_confirmed(self, values, payload):
-        for v in values:
-            if payload in v:
-                return True
-        return
-
-    def dupe_form(self, values, url, method, payload):
-        ''' True if the modified values/url/method are identical to a previously sent form '''
-        injected_vals = []
-        for v in values:
-            if payload in v:
-                injected_vals.append(v)
-                sorted(injected_vals)
-        injected_values = tuple(injected_vals)
-        vam = (injected_values, url, method)
-        vamset = set([(vam)])
-        if vamset.issubset(self.form_requests_made):
-            return True
-        self.form_requests_made.add(vam)
-        return
 
     def make_iframe_reqs(self, doc, orig_url):
         ''' Grab the <iframe src=...> attribute and add those URLs to the
@@ -341,7 +239,6 @@ class XSSspider(CrawlSpider):
                 if self.url_valid(url, orig_url) and method:
                     for i in form.inputs:
                         if i.name:
-                            #value = self.fill_form(orig_url, i, payload)
                             if type(i).__name__ not in ['InputElement', 'TextareaElement']:
                                 continue
                             if type(i).__name__ == 'InputElement':
@@ -514,146 +411,6 @@ class XSSspider(CrawlSpider):
             return
 
         return (netloc, protocol, doc_domain, path)
-
-    def xss_params(self, payload, doc):
-        ''' Use some xpaths to find injection points in the lxml-formatted doc '''
-        injections = []
-
-        #anywhere_text sometimes throws unicode error
-        anywhere_text =[]
-
-        attr_xss = doc.xpath("//@*[contains(., '%s')]" % payload)
-        text_xss = doc.xpath("//*[contains(text(), '%s')]" % payload)
-        comment_xss = doc.xpath("//comment()")
-        anywhere_text = doc.xpath("//text()")
-        #try:
-        #except UnicodeDecodeError:
-        #    self.log('Could not utf8 decode character, continuing anyway')
-
-        attr_inj = self.parse_attr_xpath(attr_xss)
-        tag_inj = self.parse_tag_xpath(text_xss)
-        comm_inj = self.parse_comm_xpath(comment_xss, payload)
-        any_text_inj = self.parse_anytext_xpath(anywhere_text, payload)
-
-        # any_text_inj is just there to catch things missed by tag_inj so we
-        # remove dupes between then
-        diff = [x for x in any_text_inj if x not in tag_inj]
-
-        injects = [attr_inj, tag_inj, comm_inj, diff]
-        for i in injects:
-            if len(i) > 0:
-                for x in i:
-                    injections.append(x)
-
-        if len(injections) > 0:
-            return sorted(injections)
-
-    def parse_comm_xpath(self, xpath, payload):
-        comm_inj = []
-        if len(xpath) > 0:
-            for x in xpath:
-                if payload in str(x):
-                    parent = x.getparent()
-                    tag = 'comment'
-                    line = parent.sourceline
-                    comm_inj.append((line, tag))
-
-        return comm_inj
-
-    def xss_str_generator(self, injections, delim):
-        ''' This is where the injection points are analyzed and specific payloads are created '''
-
-        payloads = []
-
-        for i in injections:
-            line, tag, attr, attr_val = self.parse_injections(i)
-
-            if attr:
-                # Test for open redirect/XSS
-                if attr == 'href' and attr_val == delim:
-                    if self.redir_pld not in payloads:
-                        payloads.append(self.redir_pld)
-
-                # Test for frame src injection
-                frames = ['frame', 'iframe']
-                if tag in frames and attr == 'src':
-                    if attr_val == delim:
-                        if self.redir_pld not in payloads:
-                            payloads.append(self.redir_pld)
-                    if re.match('javascript:', attr_val):
-                        if self.redir_pld not in payloads:
-                            payloads.append(self.js_pld)
-
-                if attr in self.event_attributes():
-                    if self.js_pld not in payloads:
-                        payloads.append(self.js_pld)
-
-            else:
-                # Test for embedded js xss
-                if tag == 'script' and self.js_pld not in payloads:
-                    payloads.append(self.js_pld)
-
-            # Test for normal XSS
-            if self.test_pld not in payloads:
-                payloads.append(self.test_pld)
-
-        payloads = self.delim_payloads(payloads, delim)
-        if len(payloads) > 0:
-            return payloads
-
-    def delim_payloads(self, payloads, delim):
-        ''' Surround the payload with a delimiter '''
-        payload_list = []
-        for p in payloads:
-            payload_list.append(delim+p+delim)
-        payloads = list(set(payload_list)) # remove dupes
-
-        return payloads
-
-    def parse_injections(self, injection):
-        parent = None
-        attr = None
-        attr_val = None
-        line = injection[0]
-        tag = injection[1]
-        if len(injection) > 2: # attribute injections have 4 data points within this var
-            attr = injection[2]
-            attr_val = injection[3]
-
-        return line, tag, attr, attr_val
-
-    def parse_attr_xpath(self, xpath):
-        attr_inj = []
-        if len(xpath) > 0:
-            for x in xpath:
-                for y in x.getparent().items():
-                    if x == y[1]:
-                        tag = x.getparent().tag
-                        attr = y[0]
-                        line = x.getparent().sourceline
-                        attr_val = x
-                        attr_inj.append((line, tag, attr, attr_val))
-        return attr_inj
-
-    def parse_tag_xpath(self, xpath):
-        tag_inj = []
-        if len(xpath) > 0:
-            tags = []
-            for x in xpath:
-                tag_inj.append((x.sourceline, x.tag))
-        return tag_inj
-
-    def parse_anytext_xpath(self, xpath, payload):
-        ''' Creates injection points for the xpath that finds the payload in any html enclosed text '''
-        anytext_inj = []
-        if len(xpath) > 0:
-            for x in xpath:
-                if payload in x:
-                    parent = x.getparent()
-                    tag = parent.tag
-                    line = parent.sourceline
-                    anytext_inj.append((line, tag))
-        return anytext_inj
 
     def make_url_reqs(self, orig_url, payloaded_urls, delim_str):
         ''' Make the URL requests '''
