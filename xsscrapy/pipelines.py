@@ -687,7 +687,7 @@ class XSSCharFinder(object):
         return event_attributes
 
     def write_to_file(self, item, spider):
-        with open('formatted-vulns.txt', 'a+') as f:
+        with open('XSS-vulnerable.txt', 'a+') as f:
             f.write('\n')
 
             f.write('URL: '+item['orig_url']+'\n')
