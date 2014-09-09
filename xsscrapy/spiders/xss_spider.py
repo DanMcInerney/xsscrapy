@@ -60,7 +60,6 @@ class XSSspider(CrawlSpider):
         self.login_pass = kwargs.get('pw')
         if self.login_pass == 'None':
             self.login_pass = None
-        print '  login', self.login_user, 'passw', self.login_pass
 
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
@@ -250,7 +249,12 @@ class XSSspider(CrawlSpider):
                             orig_val = form.fields[i.name]
                             if orig_val == None:
                                 orig_val = ''
-                            form.fields[i.name] = payload
+                            # Foriegn languages might cause this like russian "yaca" for "checkbox"
+                            try:
+                                form.fields[i.name] = payload
+                            except ValueError as e:
+                                self.log('Error: '+str(e))
+                                continue
                             xss_param = i.name
                             values = form.form_values()
                             req = FormRequest(url,
