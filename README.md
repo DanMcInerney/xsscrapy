@@ -16,7 +16,7 @@ If you wish to login then crawl:
 ./xsscrapy.py -u http://something.com/login_page -l loginname -p pa$$word
 ```
 
-Output is stored in XSS-vulnerable.txt.
+XSS vulnerabilities are reported in XSS-vulnerable.txt
 
 
 Dependencies
