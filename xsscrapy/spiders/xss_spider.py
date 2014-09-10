@@ -270,7 +270,11 @@ class XSSspider(CrawlSpider):
                                               callback=self.xss_chars_finder)
                             reqs.append(req)
                             # Reset the value
-                            form.fields[i.name] = orig_val
+                            try:
+                                form.fields[i.name] = orig_val
+                            except ValueError as e:
+                                self.log('Error: '+str(e))
+                                continue
 
         if len(reqs) > 0:
             return reqs
