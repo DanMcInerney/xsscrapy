@@ -5,7 +5,7 @@
 # Uncomment below in order to disallow redirects
 #REDIRECT_ENABLED = False
 
-# Uncomment this to liite the spider's output
+# Uncomment this to lessen the spider's output
 #LOG_LEVEL = 'INFO'
 
 BOT_NAME = 'xsscrapy'
@@ -33,7 +33,7 @@ DUPEFILTER_CLASS = 'xsscrapy.bloomfilters.BloomURLDupeFilter'
 ITEM_PIPELINES = {'xsscrapy.pipelines.XSSCharFinder':100}
 
 #FEED_FORMAT = 'csv'
-#FEED_URI = 'vulnerable-urls.txt'
+#FEED_URI = 'example.txt'
 
-CONCURRENT_REQUESTS = 30
+CONCURRENT_REQUESTS = 25 
 

@@ -14,6 +14,7 @@ class vuln(Item):
     resp_url = Field()
     xss_param = Field()
     error = Field()
+    sugg_payloads = Field()
     line = Field()
     POST_to = Field()
 
