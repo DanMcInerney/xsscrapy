@@ -10,7 +10,7 @@ import lxml.etree
 import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
-from IPython import embed
+#from IPython import embed
 
 class XSSCharFinder(object):
     def __init__(self):
@@ -53,6 +53,7 @@ class XSSCharFinder(object):
                     mismatch = True
 
                 inj_data = self.combine_regex_lxml(lxml_injs, re_matches, scolon_matches, body, mismatch)
+
                 # If mismatch is True, then "for offset in sorted(inj_data)" will fail with TypeError
                 try:
                     for offset in sorted(inj_data):
@@ -211,12 +212,12 @@ class XSSCharFinder(object):
                 except KeyError:
                     chars_payloads[chars] = [payload]
 
-                chars = ("<", ">")
-                payload = '</SCript><svG/onLoad=prompt(9)>'
-                try:
-                    chars_payloads[chars].append(payload)
-                except KeyError:
-                    chars_payloads[chars] = [payload]
+            chars = ("<", ">")
+            payload = '</SCript><svG/onLoad=prompt(9)>'
+            try:
+                chars_payloads[chars].append(payload)
+            except KeyError:
+                chars_payloads[chars] = [payload]
 
         # Everything that's not a script tag
         else:
@@ -400,6 +401,7 @@ class XSSCharFinder(object):
         first_open = None
         for c in line:
             if c == '"':
+                # I have noticed that booking.com throws false+ with this first_open stuff
                 if not first_open:
                     first_open = c
                 dquote_open = self.opposite(dquote_open)

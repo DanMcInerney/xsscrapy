@@ -22,7 +22,7 @@ import requests
 import string
 import random
 
-from IPython import embed
+#from IPython import embed
 
 __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
