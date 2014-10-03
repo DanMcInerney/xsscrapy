@@ -1,18 +1,19 @@
 xsscrapy
 ========
 
-Fast, thorough, XSS spider. Give it a URL and it'll test every link it finds for cross-site scripting vulnerabilities. 
+Fast, thorough, XSS/SQLi spider. Give it a URL and it'll test every link it finds for cross-site scripting and some SQL injection vulnerabilities. See FAQ for more details about SQLi detection.
+
 
 From within the main folder run:
 
-```
+```shell
 ./xsscrapy.py -u http://something.com
 ```
 
 
 If you wish to login then crawl:
 
-```
+```shell
 ./xsscrapy.py -u http://something.com/login_page -l loginname -p pa$$word
 ```
 
@@ -21,7 +22,9 @@ XSS vulnerabilities are reported in XSS-vulnerable.txt
 
 Dependencies
 -------
-```
+``` shell
+wget -O https://bootstrap.pypa.io/get-pip.py
+python get-pip.py
 pip install -r requirements.txt
 ```
 
@@ -38,6 +41,7 @@ FAQ
 -------
 
 * If it gives an error : ```ImportError: cannot import name LinkExtractor```. This means that you don't have the latest version of scrapy. You can install it using: ```sudo pip install --upgrade scrapy```.
+* It's called XSScrapy, so why SQL injection detection too? There is overlap between dangerous XSS chars and dangerous SQL injection characters, namely single and double quotes. Detecting SQL injection errors in a response is also simple and nonCPU-intensive. So although 99% of this script is strongly geared toward high and accurate detection of XSS adding simple SQL injection detection through error message discovery is a simple and effective addition. This script will not test for blind sql injection. Error messages it looks for come straight from w3af's sqli audit plugin.
 
 License
 -------

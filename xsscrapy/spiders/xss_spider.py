@@ -126,8 +126,8 @@ class XSSspider(CrawlSpider):
         body = response.body
 
         try:
-            # You must use soupparser or else candyass webdevs who use identical 
-            # multiple html attributes with injections in them don't get caught
+            # soupparser will handle broken HTML better (like identical attributes) but god damn will you pay for it
+            # in CPU cycles. Slows the script to a crawl and introduces more bugs.
             doc = lxml.html.fromstring(body, base_url=orig_url)
         except lxml.etree.ParserError:
             self.log('ParserError from lxml on %s' % orig_url)
@@ -145,6 +145,7 @@ class XSSspider(CrawlSpider):
             reqs += iframe_reqs
 
         # Edit a few select headers with injection string and resend request
+        # Left room to add more header injections too
         test_headers = []
         test_headers.append('Referer')
         if 'UA' in response.meta:
@@ -159,7 +160,7 @@ class XSSspider(CrawlSpider):
         if cookie_reqs:
             reqs += cookie_reqs
 
-      #  # Fill out forms with xss strings
+        # Fill out forms with xss strings
         if forms:
             form_reqs = self.make_form_reqs(orig_url, forms, payload)
             if form_reqs:
@@ -318,10 +319,9 @@ class XSSspider(CrawlSpider):
         return payloaded_urls, delim_str
 
     def payload_end_of_url(self, url, payload):
-        ''' Payload the end of the URL to catch some DOM and other reflected XSSes '''
+        ''' Payload the end of the URL to catch some DOM(?) and other reflected XSSes '''
 
         # Make URL test and delim strings unique
-
         if url[-1] == '/':
             payloaded_url = url+payload
         else:
@@ -331,7 +331,6 @@ class XSSspider(CrawlSpider):
 
     def payload_url_vars(self, url, payload):
         ''' Payload the URL variables '''
-
         payloaded_urls = []
         params = self.getURLparams(url)
         modded_params = self.change_params(params, payload)

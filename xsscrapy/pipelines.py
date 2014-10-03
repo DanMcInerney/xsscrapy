@@ -21,17 +21,16 @@ class XSSCharFinder(object):
     def process_item(self, item, spider):
         response = item['resp']
         meta = response.meta
-        item = vuln()
 
         payload = meta['payload']
         delim = meta['delim']
         resp_url = response.url
-        body = response.body.lower()
+        body = response.body
         mismatch = False
         error = None
         orig_payload = payload.replace(delim, '').replace(';9', '') # xss char payload
         # Regex: ( ) mean group 1 is within the parens, . means any char,
-        # {1,50} means match any char 0 to 72 times, 72 chosen because double URL encoding
+        # {1,80} means match any char 0 to 80 times, 80 chosen because double URL encoding
         # ? makes the search nongreedy so it stops after hitting its limits
         #full_match = '%s.*?%s' % (delim, delim)
         full_match = '%s.{0,80}?%s' % (delim, delim)
@@ -40,6 +39,18 @@ class XSSCharFinder(object):
         #chars_between_delims = '%s(.*?)%s' % (delim, delim)
         chars_between_delims = '%s(.{0,80}?)%s' % (delim, delim)
 
+        # Quick sqli check based on w3af's sqli audit plugin
+        sqli_error = self.sqli_check(body)
+        msg = 'Possible SQL injection error! This error message fragment was found: "%s"' % sqli_error
+        if sqli_error:
+            item = self.make_item(meta, resp_url, msg, orig_payload, None)
+            self.write_to_file(item, spider)
+            item = None
+
+        # Now that we've checked for SQLi, we can lowercase the body
+        body = body.lower()
+
+        # XSS detection starts here
         re_matches = sorted([(m.start(), m.group()) for m in re.finditer(full_match, body)])
         if re_matches:
             scolon_matches = sorted([(m.start(), m.group()) for m in re.finditer(sc_full_match, body)])
@@ -62,8 +73,7 @@ class XSSCharFinder(object):
 
                         item = self.xss_logic(inj_data[offset], meta, resp_url, error)
                         if item:
-                            if item['xss_place'] == 'url':
-                                item = self.url_item_filtering(item, spider)
+                            item = self.url_item_filtering(item, spider)
                             if mismatch:
                                 item['error'] = 'Mismatch: html parsed vs regex parsed injections, %d vs %d. Higher chance of false positive' % (len(injections), len(full_matches))
                             self.write_to_file(item, spider)
@@ -84,12 +94,90 @@ class XSSCharFinder(object):
         if pl_lines_found:
             item = self.make_item(meta, resp_url, pl_lines_found, orig_payload, None)
             if item:
-                if item['xss_place'] == 'url':
-                    item = self.url_item_filtering(item, spider)
-                    item['error'] = 'Payload delims do not surround this injection point. Found via search for entire payload.'
+                item = self.url_item_filtering(item, spider)
+                item['error'] = 'Payload delims do not surround this injection point. Found via search for entire payload.'
                 self.write_to_file(item, spider)
+                return item
 
         raise DropItem('No XSS vulns in %s. type = %s, %s' % (resp_url, meta['xss_place'], meta['xss_param']))
+
+    def sqli_check(self, body):
+        ''' Do a quick lookup in the response body for SQL errors '''
+        # Taken from w3af
+        SQL_errors = ("System.Data.OleDb.OleDbException",
+                      "[SQL Server]",
+                      "[Microsoft][ODBC SQL Server Driver]",
+                      "[SQLServer JDBC Driver]",
+                      "[SqlException",
+                      "System.Data.SqlClient.SqlException",
+                      "Unclosed quotation mark after the character string",
+                      "'80040e14'",
+                      "mssql_query()",
+                      "odbc_exec()",
+                      "Microsoft OLE DB Provider for ODBC Drivers",
+                      "Microsoft OLE DB Provider for SQL Server",
+                      "Incorrect syntax near",
+                      "Sintaxis incorrecta cerca de",
+                      "Syntax error in string in query expression",
+                      "ADODB.Field (0x800A0BCD)<br>",
+                      "ADODB.Recordset'",
+                      "Unclosed quotation mark before the character string",
+                      "'80040e07'",
+                      "Microsoft SQL Native Client error",
+                      "SQLCODE",
+                      "DB2 SQL error:",
+                      "SQLSTATE",
+                      "[CLI Driver]",
+                      "[DB2/6000]",
+                      "Sybase message:",
+                      "Sybase Driver",
+                      "[SYBASE]",
+                      "Syntax error in query expression",
+                      "Data type mismatch in criteria expression.",
+                      "Microsoft JET Database Engine",
+                      "[Microsoft][ODBC Microsoft Access Driver]",
+                      "Microsoft OLE DB Provider for Oracle",
+                      "wrong number or types",
+                      "PostgreSQL query failed:",
+                      "supplied argument is not a valid PostgreSQL result",
+                      "unterminated quoted string at or near",
+                      "pg_query() [:",
+                      "pg_exec() [:",
+                      "supplied argument is not a valid MySQL",
+                      "Column count doesn\'t match value count at row",
+                      "mysql_fetch_array()",
+                      "mysql_",
+                      "on MySQL result index",
+                      "You have an error in your SQL syntax;",
+                      "You have an error in your SQL syntax near",
+                      "MySQL server version for the right syntax to use",
+                      "Division by zero in",
+                      "not a valid MySQL result",
+                      "[MySQL][ODBC",
+                      "Column count doesn't match",
+                      "the used select statements have different number of columns",
+                      "DBD::mysql::st execute failed",
+                      "DBD::mysql::db do failed:",
+                      "com.informix.jdbc",
+                      "Dynamic Page Generation Error:",
+                      "An illegal character has been found in the statement",
+                      "[Informix]",
+                      "<b>Warning</b>:  ibase_",
+                      "Dynamic SQL Error",
+                      "[DM_QUERY_E_SYNTAX]",
+                      "has occurred in the vicinity of:",
+                      "A Parser Error (syntax error)",
+                      "java.sql.SQLException",
+                      "Unexpected end of command in statement",
+                      "[Macromedia][SQLServer JDBC Driver]",
+                      "could not prepare statement",
+                      "Unknown column",
+                      "where clause",
+                      "SqlServer",
+                      "syntax error")
+        for e in SQL_errors:
+            if e in body:
+                return e
 
     def xss_logic(self, injection, meta, resp_url, error):
         ''' XSS logic. Returns None if vulnerability not found 
@@ -448,8 +536,10 @@ class XSSCharFinder(object):
 
     def html_parser(self, body, resp_url):
         try:
-            # You must use soupparser or else candyass webdevs who use identical 
+            # You must use lxml.html.soupparser or else candyass webdevs who use identical 
             # multiple html attributes with injections in them don't get caught
+            # That being said, soupparser is crazy slow and introduces a ton of
+            # new bugs so that is not an option at this point in time
             doc = lxml.html.fromstring(body, base_url=resp_url)
         except lxml.etree.ParserError:
             self.log('ParserError from lxml on %s' % resp_url)
@@ -476,7 +566,6 @@ class XSSCharFinder(object):
         #except lxml.etree.XMLSyntaxError:
         #    self.log('XMLSyntaxError from lxml on %s' % resp_url)
         #    return
-        
         return doc
 
     def combine_regex_lxml(self, lxml_injs, full_matches, scolon_matches, body, mismatch):
@@ -579,8 +668,8 @@ class XSSCharFinder(object):
         return pl_lines_found
 
     def make_item(self, meta, resp_url, line, unfiltered, sugg_payloads):
-        item = vuln()
         ''' Create the vuln item '''
+        item = vuln()
 
         if isinstance(line, str):
             item['line'] = line
@@ -597,7 +686,9 @@ class XSSCharFinder(object):
         if 'POST_to' in meta:
             item['POST_to'] = meta['POST_to']
 
-        return item
+        # Just make sure one of the options has been set
+        if item['unfiltered']:
+            return item
 
     def xpath_inj_points(self, search_str, doc):
         ''' Searches lxml doc for any text, attributes, or comments
@@ -825,7 +916,7 @@ class XSSCharFinder(object):
         return event_attributes
 
     def write_to_file(self, item, spider):
-        with open('XSS-vulnerable.txt', 'a+') as f:
+        with open('xsscrapy-vulns.txt', 'a+') as f:
             f.write('\n')
 
             f.write('URL: '+item['orig_url']+'\n')
