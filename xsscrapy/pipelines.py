@@ -40,10 +40,10 @@ class XSSCharFinder(object):
         chars_between_delims = '%s(.{0,80}?)%s' % (delim, delim)
 
         # Quick sqli check based on w3af's sqli audit plugin
-        sqli_error = self.sqli_check(body)
+        sqli_error = self.sqli_check(body, meta['orig_body'])
         msg = 'Possible SQL injection error! This error message fragment was found: "%s"' % sqli_error
         if sqli_error:
-            item = self.make_item(meta, resp_url, msg, orig_payload, None)
+            item = self.make_item(meta, resp_url, msg, 'N/A', None)
             self.write_to_file(item, spider)
             item = None
 
@@ -101,7 +101,7 @@ class XSSCharFinder(object):
 
         raise DropItem('No XSS vulns in %s. type = %s, %s' % (resp_url, meta['xss_place'], meta['xss_param']))
 
-    def sqli_check(self, body):
+    def sqli_check(self, body, orig_body):
         ''' Do a quick lookup in the response body for SQL errors '''
         # Taken from w3af
         SQL_errors = ("System.Data.OleDb.OleDbException",
@@ -172,11 +172,11 @@ class XSSCharFinder(object):
                       "[Macromedia][SQLServer JDBC Driver]",
                       "could not prepare statement",
                       "Unknown column",
-                      #"where clause",
+                      "where clause",
                       "SqlServer",
                       "syntax error")
         for e in SQL_errors:
-            if e in body:
+            if e in body and e not in orig_body:
                 return e
 
     def xss_logic(self, injection, meta, resp_url, error):

@@ -174,6 +174,10 @@ class XSSspider(CrawlSpider):
             if url_reqs:
                 reqs += url_reqs
 
+        # Add the original untampered response to each request for use by sqli_check()
+        for r in reqs:
+            r.meta['orig_body'] = body
+
         # Each Request here will be given a specific callback relative to whether it was URL variables or form inputs that were XSS payloaded
         return reqs
 
