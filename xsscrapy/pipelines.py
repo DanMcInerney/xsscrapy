@@ -39,10 +39,10 @@ class XSSCharFinder(object):
         #chars_between_delims = '%s(.*?)%s' % (delim, delim)
         chars_between_delims = '%s(.{0,80}?)%s' % (delim, delim)
 
-        # Quick sqli check based on w3af's sqli audit plugin
-        sqli_error = self.sqli_check(body, meta['orig_body'])
-        msg = 'Possible SQL injection error! This error message fragment was found: "%s"' % sqli_error
-        if sqli_error:
+        # Quick sqli check based on DSSS
+        dbms, regex = self.sqli_check(body, meta['orig_body'])
+        if dbms:
+            msg = 'Possible SQL injection error! Suspected DBMS: %s, regex used: %s' % (dbms, regex)
             item = self.make_item(meta, resp_url, msg, 'N/A', None)
             self.write_to_file(item, spider)
             item = None
@@ -102,82 +102,96 @@ class XSSCharFinder(object):
         raise DropItem('No XSS vulns in %s. type = %s, %s' % (resp_url, meta['xss_place'], meta['xss_param']))
 
     def sqli_check(self, body, orig_body):
-        ''' Do a quick lookup in the response body for SQL errors '''
+        ''' Do a quick lookup in the response body for SQL errors. Both w3af's and DSSS.py's methods are in here
+        but sectoolsmarket.com shows DSSS as having better detection rates so using theirs '''
+
+        # Taken from Damn Small SQLi Scanner
+        DBMS_ERRORS = {"MySQL":                (r"SQL syntax.*MySQL", r"Warning.*mysql_.*", r"valid MySQL result", r"MySqlClient\."),
+                       "PostgreSQL":           (r"PostgreSQL.*ERROR", r"Warning.*\Wpg_.*", r"valid PostgreSQL result", r"Npgsql\."),
+                       "Microsoft SQL Server": (r"Driver.* SQL[\-\_\ ]*Server", r"OLE DB.* SQL Server", r"(\W|\A)SQL Server.*Driver", r"Warning.*mssql_.*",
+                                                r"(\W|\A)SQL Server.*[0-9a-fA-F]{8}", r"(?s)Exception.*\WSystem\.Data\.SqlClient\.", r"(?s)Exception.*\WRoadhouse\.Cms\."),
+                       "Microsoft Access":     (r"Microsoft Access Driver", r"JET Database Engine", r"Access Database Engine"),
+                       "Oracle":               (r"ORA-[0-9][0-9][0-9][0-9]", r"Oracle error", r"Oracle.*Driver", r"Warning.*\Woci_.*", r"Warning.*\Wora_.*")}
+        for (dbms, regex) in ((dbms, regex) for dbms in DBMS_ERRORS for regex in DBMS_ERRORS[dbms]):
+            if re.search(regex, body, re.I) and not re.search(regex, orig_body, re.I):
+                return (dbms, regex)
+        return None, None
+
         # Taken from w3af
-        SQL_errors = ("System.Data.OleDb.OleDbException",
-                      "[SQL Server]",
-                      "[Microsoft][ODBC SQL Server Driver]",
-                      "[SQLServer JDBC Driver]",
-                      "[SqlException",
-                      "System.Data.SqlClient.SqlException",
-                      "Unclosed quotation mark after the character string",
-                      "'80040e14'",
-                      "mssql_query()",
-                      "odbc_exec()",
-                      "Microsoft OLE DB Provider for ODBC Drivers",
-                      "Microsoft OLE DB Provider for SQL Server",
-                      "Incorrect syntax near",
-                      "Sintaxis incorrecta cerca de",
-                      "Syntax error in string in query expression",
-                      "ADODB.Field (0x800A0BCD)<br>",
-                      "ADODB.Recordset'",
-                      "Unclosed quotation mark before the character string",
-                      "'80040e07'",
-                      "Microsoft SQL Native Client error",
-                      "SQLCODE",
-                      "DB2 SQL error:",
-                      "SQLSTATE",
-                      "[CLI Driver]",
-                      "[DB2/6000]",
-                      "Sybase message:",
-                      "Sybase Driver",
-                      "[SYBASE]",
-                      "Syntax error in query expression",
-                      "Data type mismatch in criteria expression.",
-                      "Microsoft JET Database Engine",
-                      "[Microsoft][ODBC Microsoft Access Driver]",
-                      "Microsoft OLE DB Provider for Oracle",
-                      "wrong number or types",
-                      "PostgreSQL query failed:",
-                      "supplied argument is not a valid PostgreSQL result",
-                      "unterminated quoted string at or near",
-                      "pg_query() [:",
-                      "pg_exec() [:",
-                      "supplied argument is not a valid MySQL",
-                      "Column count doesn\'t match value count at row",
-                      "mysql_fetch_array()",
-                      "mysql_",
-                      "on MySQL result index",
-                      "You have an error in your SQL syntax;",
-                      "You have an error in your SQL syntax near",
-                      "MySQL server version for the right syntax to use",
-                      "Division by zero in",
-                      "not a valid MySQL result",
-                      "[MySQL][ODBC",
-                      "Column count doesn't match",
-                      "the used select statements have different number of columns",
-                      "DBD::mysql::st execute failed",
-                      "DBD::mysql::db do failed:",
-                      "com.informix.jdbc",
-                      "Dynamic Page Generation Error:",
-                      "An illegal character has been found in the statement",
-                      "[Informix]",
-                      "<b>Warning</b>:  ibase_",
-                      "Dynamic SQL Error",
-                      "[DM_QUERY_E_SYNTAX]",
-                      "has occurred in the vicinity of:",
-                      "A Parser Error (syntax error)",
-                      "java.sql.SQLException",
-                      "Unexpected end of command in statement",
-                      "[Macromedia][SQLServer JDBC Driver]",
-                      "could not prepare statement",
-                      "Unknown column",
-                      "where clause",
-                      "SqlServer",
-                      "syntax error")
-        for e in SQL_errors:
-            if e in body and e not in orig_body:
-                return e
+        #SQL_errors = ("System.Data.OleDb.OleDbException",
+        #              "[SQL Server]",
+        #              "[Microsoft][ODBC SQL Server Driver]",
+        #              "[SQLServer JDBC Driver]",
+        #              "[SqlException",
+        #              "System.Data.SqlClient.SqlException",
+        #              "Unclosed quotation mark after the character string",
+        #              "'80040e14'",
+        #              "mssql_query()",
+        #              "odbc_exec()",
+        #              "Microsoft OLE DB Provider for ODBC Drivers",
+        #              "Microsoft OLE DB Provider for SQL Server",
+        #              "Incorrect syntax near",
+        #              "Sintaxis incorrecta cerca de",
+        #              "Syntax error in string in query expression",
+        #              "ADODB.Field (0x800A0BCD)<br>",
+        #              "ADODB.Recordset'",
+        #              "Unclosed quotation mark before the character string",
+        #              "'80040e07'",
+        #              "Microsoft SQL Native Client error",
+        #              "SQLCODE",
+        #              "DB2 SQL error:",
+        #              "SQLSTATE",
+        #              "[CLI Driver]",
+        #              "[DB2/6000]",
+        #              "Sybase message:",
+        #              "Sybase Driver",
+        #              "[SYBASE]",
+        #              "Syntax error in query expression",
+        #              "Data type mismatch in criteria expression.",
+        #              "Microsoft JET Database Engine",
+        #              "[Microsoft][ODBC Microsoft Access Driver]",
+        #              "Microsoft OLE DB Provider for Oracle",
+        #              "wrong number or types",
+        #              "PostgreSQL query failed:",
+        #              "supplied argument is not a valid PostgreSQL result",
+        #              "unterminated quoted string at or near",
+        #              "pg_query() [:",
+        #              "pg_exec() [:",
+        #              "supplied argument is not a valid MySQL",
+        #              "Column count doesn\'t match value count at row",
+        #              "mysql_fetch_array()",
+        #              "mysql_",
+        #              "on MySQL result index",
+        #              "You have an error in your SQL syntax;",
+        #              "You have an error in your SQL syntax near",
+        #              "MySQL server version for the right syntax to use",
+        #              "Division by zero in",
+        #              "not a valid MySQL result",
+        #              "[MySQL][ODBC",
+        #              "Column count doesn't match",
+        #              "the used select statements have different number of columns",
+        #              "DBD::mysql::st execute failed",
+        #              "DBD::mysql::db do failed:",
+        #              "com.informix.jdbc",
+        #              "Dynamic Page Generation Error:",
+        #              "An illegal character has been found in the statement",
+        #              "[Informix]",
+        #              "<b>Warning</b>:  ibase_",
+        #              "Dynamic SQL Error",
+        #              "[DM_QUERY_E_SYNTAX]",
+        #              "has occurred in the vicinity of:",
+        #              "A Parser Error (syntax error)",
+        #              "java.sql.SQLException",
+        #              "Unexpected end of command in statement",
+        #              "[Macromedia][SQLServer JDBC Driver]",
+        #              "could not prepare statement",
+        #              "Unknown column",
+        #              "where clause",
+        #              "SqlServer",
+        #              "syntax error")
+        #for e in SQL_errors:
+        #    if e in body and e not in orig_body:
+        #        return e
 
     def xss_logic(self, injection, meta, resp_url, error):
         ''' XSS logic. Returns None if vulnerability not found 
