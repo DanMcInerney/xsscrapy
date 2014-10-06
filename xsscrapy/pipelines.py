@@ -172,7 +172,7 @@ class XSSCharFinder(object):
                       "[Macromedia][SQLServer JDBC Driver]",
                       "could not prepare statement",
                       "Unknown column",
-                      "where clause",
+                      #"where clause",
                       "SqlServer",
                       "syntax error")
         for e in SQL_errors:

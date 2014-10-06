@@ -48,6 +48,7 @@ class XSSspider(CrawlSpider):
         super(XSSspider, self).__init__(*args, **kwargs)
         self.start_urls = [kwargs.get('url')]
         hostname = urlparse(self.start_urls[0]).hostname
+        # With subdomains
         self.allowed_domains = ['.'.join(hostname.split('.')[-2:])] # adding [] around the value seems to allow it to crawl subdomain of value
         self.delim = '9zqjx'
         # semi colon goes on end because sometimes it cuts stuff off like
