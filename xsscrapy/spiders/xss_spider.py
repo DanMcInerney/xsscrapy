@@ -58,9 +58,10 @@ class XSSspider(CrawlSpider):
         self.login_user = kwargs.get('user')
         if self.login_user == 'None':
             self.login_user = None
-        self.login_pass = kwargs.get('pw')
-        if self.login_pass == 'None':
-            self.login_pass = None
+        if kwargs.get('pw') == 'None' and self.login_user is not None:
+            self.login_pass = raw_input("Please enter the password: ")
+        else:
+            self.login_pass = kwargs.get('pw')
 
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
