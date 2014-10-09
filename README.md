@@ -17,6 +17,12 @@ If you wish to login then crawl:
 ./xsscrapy.py -u http://something.com/login_page -l loginname -p pa$$word
 ```
 
+If you wish to login without storing your password in your history: 
+```shell
+./xsscrapy.py -u http://something.com/login_page -l loginname
+```
+
+
 XSS vulnerabilities are reported in XSS-vulnerable.txt
 
 
