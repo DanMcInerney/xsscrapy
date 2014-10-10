@@ -49,10 +49,10 @@ class XSSspider(CrawlSpider):
         self.start_urls = [kwargs.get('url')]
         hostname = urlparse(self.start_urls[0]).hostname
         # With subdomains
-        self.allowed_domains = ['.'.join(hostname.split('.')[-2:])] # adding [] around the value seems to allow it to crawl subdomain of value
+        self.allowed_domains = [hostname] # adding [] around the value seems to allow it to crawl subdomain of value
         self.delim = '9zqjx'
         # semi colon goes on end because sometimes it cuts stuff off like
-        # gruyere or the second cookie dleim
+        # gruyere or the second cookie delim
         self.test_str = '\'"(){}<x>:'
 
         self.login_user = kwargs.get('user')
