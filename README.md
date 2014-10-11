@@ -7,24 +7,24 @@ Fast, thorough, XSS/SQLi spider. Give it a URL and it'll test every link it find
 From within the main folder run:
 
 ```shell
-./xsscrapy.py -u http://something.com
+./xsscrapy.py -u http://example.com
 ```
 
 
 If you wish to login then crawl:
 
 ```shell
-./xsscrapy.py -u http://something.com/login_page -l loginname -p pa$$word
+./xsscrapy.py -u http://example.com/login_page -l loginname -p pa$$word
 ```
 
 If you wish to login without storing your password in your history: 
 ```shell
-./xsscrapy.py -u http://something.com/login_page -l loginname
+./xsscrapy.py -u http://example.com/login_page -l loginname
 ```
 
 If you wante to rate limit to 60 requests per minute: 
 ```shell
-./xsscrapy.py -u http://something.com/ -r 60
+./xsscrapy.py -u http://example.com -r 60
 ```
 
 XSS vulnerabilities are reported in XSS-vulnerable.txt
