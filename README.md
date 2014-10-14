@@ -22,7 +22,7 @@ If you wish to login without storing your password in your history:
 ./xsscrapy.py -u http://example.com/login_page -l loginname
 ```
 
-If you wante to rate limit to 60 requests per minute: 
+If you want to rate limit to 60 requests per minute: 
 ```shell
 ./xsscrapy.py -u http://example.com -r 60
 ```
