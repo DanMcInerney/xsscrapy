@@ -12,9 +12,13 @@ From within the main folder run:
 
 
 If you wish to login then crawl:
-
 ```shell
 ./xsscrapy.py -u http://example.com/login_page -l loginname -p pa$$word
+```
+
+If you wish to login with HTTP Basic Auth then crawl:
+```shell
+./xsscrapy.py -u http://example.com/login_page -l loginname -p pa$$word --basic
 ```
 
 If you wish to login without storing your password in your history: 
@@ -26,6 +30,7 @@ If you want to rate limit to 60 requests per minute:
 ```shell
 ./xsscrapy.py -u http://example.com -r 60
 ```
+
 
 XSS vulnerabilities are reported in XSS-vulnerable.txt
 
