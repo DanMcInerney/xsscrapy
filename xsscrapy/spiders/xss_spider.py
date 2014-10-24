@@ -55,6 +55,7 @@ class XSSspider(CrawlSpider):
         # gruyere or the second cookie delim
         self.test_str = '\'"(){}<x>:'
 
+        # Login details
         self.login_user = kwargs.get('user')
         if self.login_user == 'None':
             self.login_user = None
@@ -62,6 +63,12 @@ class XSSspider(CrawlSpider):
             self.login_pass = raw_input("Please enter the password: ")
         else:
             self.login_pass = kwargs.get('pw')
+
+        # HTTP Basic Auth
+        self.basic_auth = kwargs.get('basic')
+        if self.basic_auth == 'true':
+            self.http_user = self.login_user
+            self.http_pass = self.login_pass
 
     def parse_start_url(self, response):
         ''' Creates the XSS tester requests for the start URL as well as the request for robots.txt '''
@@ -76,22 +83,30 @@ class XSSspider(CrawlSpider):
 
     #### Handle logging in if username and password are given as arguments ####
     def start_requests(self):
-        ''' If -a user= and -a pw= args are given, pass the first response to the login handler
+        ''' If user and pw args are given, pass the first response to the login handler
             otherwise pass it to the normal callback function '''
         if self.login_user and self.login_pass:
-            yield Request(url=self.start_urls[0], callback=self.login)
+            if self.basic_auth == 'true':
+                yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
+            else:
+                yield Request(url=self.start_urls[0], callback=self.login)
         else:
             yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
 
     def login(self, response):
         ''' Fill out the login form and return the request'''
-        args, url, method = fill_login_form(response.url, response.body, self.login_user, self.login_pass)
         self.log('Logging in...')
-        return FormRequest(url,
-                           method=method,
-                           formdata=args,
-                           callback=self.confirm_login,
-                           dont_filter=True)
+        try:
+            args, url, method = fill_login_form(response.url, response.body, self.login_user, self.login_pass)
+            return FormRequest(url,
+                              method=method,
+                              formdata=args,
+                              callback=self.confirm_login,
+                              dont_filter=True)
+
+        except Exception:
+            self.log('Login failed') # Make this more specific eventually
+            return Request(url=self.start_urls[0], dont_filter=True) # Continue crawling
 
     def confirm_login(self, response):
         ''' Check that the username showed up in the response page '''
@@ -415,7 +430,7 @@ class XSSspider(CrawlSpider):
             protocol = parsed_url.scheme+'://'
             # Get the hostname (includes subdomains)
             hostname = parsed_url.hostname
-            # Get netlock (domain.com:8080)
+            # Get netloc (domain.com:8080)
             netloc = parsed_url.netloc
             # Get doc domain
             doc_domain = '.'.join(hostname.split('.')[-2:])
