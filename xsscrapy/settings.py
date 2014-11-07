@@ -36,5 +36,5 @@ ITEM_PIPELINES = {'xsscrapy.pipelines.XSSCharFinder':100}
 #FEED_FORMAT = 'csv'
 #FEED_URI = 'example.txt'
 
-CONCURRENT_REQUESTS = 40 
+CONCURRENT_REQUESTS = 30
 

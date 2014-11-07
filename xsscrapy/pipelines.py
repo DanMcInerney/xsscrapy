@@ -275,11 +275,22 @@ class XSSCharFinder(object):
 
         return all_chars_payloads
 
+    def decomment_js(self, line):
+        ''' Remove commented JS lines which screw with quote detection '''
+        lines = line.splitlines()
+        decommented_lines = [l for l in lines if not l.strip().startswith('//')]
+        line = '\n'.join(decommented_lines)
+        return line
+
     def tag_breakout(self, tag, line):
         chars_payloads = {}
 
         # Look for javascript breakouts
         if tag == 'script':
+
+            # Get rid of comments which screw with the quote detector
+            line = self.decomment_js(line)
+
             # Get rid of javascript escaped quotes
             dquote_open, squote_open = self.get_quote_context(line)
             if dquote_open:
@@ -550,7 +561,7 @@ class XSSCharFinder(object):
 
     def html_parser(self, body, resp_url):
         try:
-            # You must use lxml.html.soupparser or else candyass webdevs who use identical 
+            # You must use lxml.html.soupparser or else candyass webdevs who use identical
             # multiple html attributes with injections in them don't get caught
             # That being said, soupparser is crazy slow and introduces a ton of
             # new bugs so that is not an option at this point in time
@@ -561,9 +572,11 @@ class XSSCharFinder(object):
         except lxml.etree.XMLSyntaxError:
             self.log('XMLSyntaxError from lxml on %s' % resp_url)
             return
+        return doc
         #try:
-        #    # You must use soupparser or else candyass webdevs who use identical 
+        #    # You must use soupparser or else candyass webdevs who use identical
         #    # multiple html attributes with injections in them don't get caught
+        #    # EXCEPT I found out that soupparser is a CPU MONSTER and intros more bugs
         #    doc = lxml.html.soupparser.fromstring(subbed_body)
         #except ValueError:
         #    try:
@@ -580,7 +593,6 @@ class XSSCharFinder(object):
         #except lxml.etree.XMLSyntaxError:
         #    self.log('XMLSyntaxError from lxml on %s' % resp_url)
         #    return
-        return doc
 
     def combine_regex_lxml(self, lxml_injs, full_matches, scolon_matches, body, mismatch):
         ''' Combine lxml injection data with the 2 regex injection search data '''
@@ -640,6 +652,9 @@ class XSSCharFinder(object):
                     break
 
             unfiltered_chars = self.get_unfiltered_chars(payload, pl_delim, scolon_matches, match_offset)
+            # Common false+ shows only "> as unfiltered if script parses the chars between 2 unrelated delim strs
+            if unfiltered_chars == '">':
+                unfiltered_chars = ''
             all_inj_data[match_offset] = [tag_index, tag, attr, attr_val, payload, unfiltered_chars, line]
 
         return all_inj_data
@@ -843,7 +858,8 @@ class XSSCharFinder(object):
         return payload
 
     def get_unfiltered_chars(self, payload, delim, scolon_matches, match_offset):
-        ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point '''
+        ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point
+        Always returns a string '''
 
         unfiltered_chars = []
         # Change the delim+test_str+delim payload to just test_str
