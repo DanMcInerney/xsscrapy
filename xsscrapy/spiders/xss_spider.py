@@ -53,7 +53,7 @@ class XSSspider(CrawlSpider):
         self.delim = '9zqjx'
         # semi colon goes on end because sometimes it cuts stuff off like
         # gruyere or the second cookie delim
-        self.test_str = '\'"(){}<x>:'
+        self.test_str = '\'"(){}<x>:/'
 
         # Login details
         self.login_user = kwargs.get('user')

@@ -1,5 +1,5 @@
 *.pyc
-xsscrapy-vulns.txt
+xsscrapy-vulns*
 *.swp
 *.swo
 *.png
