@@ -208,6 +208,9 @@ class XSSCharFinder(object):
         payload = injection[4]
         if ';' in unfiltered_chars:
             payload += ';9'
+        # injection[6] sometimes == '<p' maybe?
+        # It happened POSTing chatRecord to http://service.taobao.com/support/minerva/robot_save_chat_record.htm
+        # that page returned a Connection: Close header and no body
         line = injection[6]+payload
         item_found = None
 
@@ -289,10 +292,10 @@ class XSSCharFinder(object):
         if tag == 'script':
 
             # Get rid of comments which screw with the quote detector
-            line = self.decomment_js(line)
+            decommented_js = self.decomment_js(line)
 
             # Get rid of javascript escaped quotes
-            dquote_open, squote_open = self.get_quote_context(line)
+            dquote_open, squote_open = self.get_quote_context(decommented_js)
             if dquote_open:
                 chars = ('"')
                 payload = 'x";prompt(9);'
