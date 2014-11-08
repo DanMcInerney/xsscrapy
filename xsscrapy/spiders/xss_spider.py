@@ -32,7 +32,6 @@ class XSSspider(CrawlSpider):
     # If you're logging into a site with a logout link, you'll want to
     # uncomment the rule below and comment the shorter one right after to
     # prevent yourself from being logged out automatically
-    #rules = (Rule(LinkExtractor(deny=('logout')), callback='parse_resp', follow=True), ) # prevent spider from hitting logout links
     rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
 
     def __init__(self, *args, **kwargs):
@@ -51,6 +50,9 @@ class XSSspider(CrawlSpider):
         self.login_user = kwargs.get('user')
         if self.login_user == 'None':
             self.login_user = None
+        else:
+            # Don't hit links with 'logout' in them since self.login_user exists
+            self.rules = (Rule(LinkExtractor(deny=('logout')), callback='parse_resp', follow=True), )
         if kwargs.get('pw') == 'None' and self.login_user is not None:
             self.login_pass = raw_input("Please enter the password: ")
         else:
