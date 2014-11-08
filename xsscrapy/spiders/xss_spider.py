@@ -26,14 +26,6 @@ import random
 
 __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
-'''
-TO DO
--LONGTERM add static js analysis (check retire.js project)
--cleanup xss_chars_finder(self, response)
--prevent Requests from being URL encoded; line 57 of __init__ in Requests
-class, I think, but I monkeypatched that and it didn't seem to work?)
-'''
-
 class XSSspider(CrawlSpider):
     name = 'xsscrapy'
 
