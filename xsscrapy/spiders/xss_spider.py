@@ -250,8 +250,9 @@ class XSSspider(CrawlSpider):
         for form in forms:
             if form.inputs:
                 method = form.method
-                url = form.action or form.base_url
-                if self.url_valid(url, orig_url) and method:
+                form_url = form.action or form.base_url
+                url = self.url_valid(form_url, orig_url)
+                if url and method:
                     for i in form.inputs:
                         if i.name:
                             if type(i).__name__ not in ['InputElement', 'TextareaElement']:

@@ -6,7 +6,7 @@ from xsscrapy.spiders.xss_spider import XSSspider
 
 __author__ = 'Dan McInerney'
 __license__ = 'BSD'
-__version__ = '1.0.0'
+__version__ = '1.0'
 __email__ = 'danhmcinerney@gmail.com'
 
 def get_args():
@@ -22,20 +22,11 @@ def get_args():
 
 def main():
     args = get_args()
-    url = args.url
-    user = args.login
-    password = args.password
-    if args.basic:
-        basic = 'true'
-    else:
-        basic = 'false'
-    if args.connections:
-        conns = args.connections
     try:
         execute(['scrapy', 'crawl', 'xsscrapy', 
-                 '-a', 'url=%s' % url, '-a', 'user=%s' % user, '-a', 
-                 'pw=%s' % password, '-s', 'CONCURRENT_REQUESTS=%s' % conns, 
-                 '-a', 'basic=%s' % basic])
+                 '-a', 'url=%s' % args.url, '-a', 'user=%s' % args.login, '-a', 
+                 'pw=%s' % args.password, '-s', 'CONCURRENT_REQUESTS=%s' % args.connections, 
+                 '-a', 'basic=%s' % args.basic])
     except KeyboardInterrupt:
         sys.exit()
 
