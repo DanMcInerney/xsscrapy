@@ -26,6 +26,11 @@ If you wish to limit simultaneous connections to 20:
 ./xsscrapy.py -u http://example.com -c 20
 ```
 
+If you wante to rate limit to 60 requests per minute: 
+```shell
+./xsscrapy.py -u http://example.com/ -r 60
+```
+
 
 XSS vulnerabilities are reported in xsscrapy-vulns.txt
 
