@@ -23,16 +23,15 @@ def get_args():
 
 def main():
     args = get_args()
-    rate = args.rate
-    if rate is not None:
-        delay = str(60 / float(rate))
+    rate = args.ratelimit
+    if rate not in [None, '0']:
+        rate = str(60 / float(rate))
     try:
         execute(['scrapy', 'crawl', 'xsscrapy', 
                  '-a', 'url=%s' % args.url, '-a', 'user=%s' % args.login, '-a', 
-                 'pw=%s' % args.password, '-a', 'basic=%s' % args.basic, '-s', 
-                 'CONCURRENT_REQUESTS=%s' % args.connections,
-                 'DOWNLOAD_DELAY=%s' % rate]
-                 ])
+                 'pw=%s' % args.password, '-a', 'basic=%s' % args.basic, 
+                 '-s', 'CONCURRENT_REQUESTS=%s' % args.connections,
+                 '-s', 'DOWNLOAD_DELAY=%s' % rate])
     except KeyboardInterrupt:
         sys.exit()
 
