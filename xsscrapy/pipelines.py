@@ -474,7 +474,7 @@ class XSSCharFinder(object):
                     chars_payloads[chars] = [payload]
             else:
                 chars = (attr_quote)
-                payload1 = 'x'+attr_quote+'x><svG onLoad=prompt(9)>'
+                payload1 = 'x'+attr_quote+'><svG onLoad=prompt(9)>'
                 payload2 = 'x'+attr_quote+' onmouseover=prompt(9) '+attr_quote
                 payload3 = 'x'+attr_quote+'/onmouseover=prompt(9)/'+attr_quote
                 try:
