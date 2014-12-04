@@ -41,7 +41,7 @@ class XSSspider(CrawlSpider):
         hostname = urlparse(self.start_urls[0]).hostname
         # With subdomains
         self.allowed_domains = [hostname] # adding [] around the value seems to allow it to crawl subdomain of value
-        self.delim = '9zqjx'
+        self.delim = '1zqjx'
         # semi colon goes on end because sometimes it cuts stuff off like
         # gruyere or the second cookie delim
         self.test_str = '\'"(){}<x>:/'
@@ -179,6 +179,7 @@ class XSSspider(CrawlSpider):
 
         # Test URL variables with xss strings
         payloaded_urls, url_delim_str = self.make_URLs(orig_url, payload) # list of tuples where item[0]=url, and item[1]=changed param
+        print 'URL:', payloaded_urls, url_delim_str
         if payloaded_urls:
             url_reqs = self.make_url_reqs(orig_url, payloaded_urls, url_delim_str)
             if url_reqs:
@@ -325,7 +326,7 @@ class XSSspider(CrawlSpider):
         delim_str = self.delim + two_rand_letters
         payload = delim_str + payload + delim_str + ';9'
 
-        if '=' in url:
+        if '=' in url and '?' in url:
             # If URL has variables, payload them
             payloaded_urls = self.payload_url_vars(url, payload) 
         else:
@@ -362,19 +363,27 @@ class XSSspider(CrawlSpider):
                         continue
 
                     for p in params:
-                        if p[1] == payload:
+                        if payload in p[1]:
                             changed_value = p[0]
 
                     payloaded_urls.append((newURL, changed_value, payload))
 
+        # Payload the path, like: example.com/page1.php?param=val becomes example.com/page1.php/FUZZCHARS/?param=val
+        payloaded_urls.append(self.payload_path(url))
+
         if len(payloaded_urls) > 0:
             return payloaded_urls
+
+#    def payload_path(self, url):
+#        ''' Payload the path, like: example.com/page1.php?param=val becomes example.com/page1.php/FUZZCHARS/?param=val '''
+#        parsed = urlparse(url)
 
     def getURLparams(self, url):
         ''' Parse out the URL parameters '''
         parsedUrl = urlparse(url)
         fullParams = parsedUrl.query
-        params = parse_qsl(fullParams) #parse_qsl rather than parse_ps in order to preserve order
+        #parse_qsl rather than parse_ps in order to preserve order
+        params = parse_qsl(fullParams, keep_blank_values=True) 
         return params
 
     def change_params(self, params, payload):
@@ -394,9 +403,8 @@ class XSSspider(CrawlSpider):
                 value = p[1]
                 # If a parameter has not been modified yet
                 if param not in changedParams and changedParam == False:
-                    newValue = payload
                     changedParams.append(param)
-                    p = (param, newValue)
+                    p = (param, value+payload)
                     moddedParams.append(p)
                     changedParam = param
                 else:
@@ -410,7 +418,7 @@ class XSSspider(CrawlSpider):
             moddedParams = []
 
         # Reset the list of changed params each time a new payload is attempted
-        changedParams = []
+        #changedParams = []
 
         if len(allModdedParams) > 0:
             return allModdedParams

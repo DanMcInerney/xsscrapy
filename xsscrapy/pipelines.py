@@ -37,7 +37,7 @@ class XSSCharFinder(object):
         # matches with semicolon which sometimes cuts results off
         sc_full_match = '%s.{0,80}?%s;9' % (delim, delim)
         #chars_between_delims = '%s(.*?)%s' % (delim, delim)
-        chars_between_delims = '%s(.{0,80}?)%s' % (delim, delim)
+        #chars_between_delims = '%s(.{0,80}?)%s' % (delim, delim)
 
         # Quick sqli check based on DSSS
         dbms, regex = self.sqli_check(body, meta['orig_body'])
@@ -204,9 +204,9 @@ class XSSCharFinder(object):
         # Unpack the injection
         #tag_index, tag, attr, attr_val, payload, unfiltered_chars, line = injection
         # get_unfiltered_chars() can only return a string 0+ characters, but never None
-        unfiltered_chars = injection[5]
+        reflected_chars = injection[5]
         payload = injection[4]
-        if ';' in unfiltered_chars:
+        if ';' in reflected_chars:
             payload += ';9'
         # injection[6] sometimes == '<p' maybe?
         # It happened POSTing chatRecord to http://service.taobao.com/support/minerva/robot_save_chat_record.htm
@@ -214,30 +214,30 @@ class XSSCharFinder(object):
         line = injection[6]+payload
         item_found = None
 
-        # get_unfiltered_chars() always returns a string
-        if len(unfiltered_chars) > 0:
+        # get_reflected_chars() always returns a string
+        if len(reflected_chars) > 0:
             chars_payloads = self.get_breakout_chars(injection, resp_url)
             # breakout_chars always returns a , never None
             if len(chars_payloads) > 0:
                 sugg_payloads = []
                 for chars in chars_payloads:
-                    if set(chars).issubset(set(unfiltered_chars)):
-                        # Get rid of possible payloads with > in them if > not in unfiltered_chars
+                    if set(chars).issubset(set(reflected_chars)):
+                        # Get rid of possible payloads with > in them if > not in reflected_chars
                         item_found = True
                         for possible_payload in chars_payloads[chars]:
-                            if '>' not in unfiltered_chars:
+                            if '>' not in reflected_chars:
                                 if '>' in possible_payload:
                                     continue
                             sugg_payloads.append(possible_payload)
 
                 if item_found:
-                    return self.make_item(meta, resp_url, line, unfiltered_chars, sugg_payloads)
+                    return self.make_item(meta, resp_url, line, reflected_chars, sugg_payloads)
 
     def get_breakout_chars(self, injection, resp_url):
         ''' Returns either None if no breakout chars were found
         or a list of sets of potential breakout characters '''
 
-        tag_index, tag, attr, attr_val, payload, unfiltered_chars, line = injection
+        tag_index, tag, attr, attr_val, payload, reflected_chars, line = injection
         pl_delim = payload[:7]
         #full_match = '%s.*?%s' % (pl_delim, pl_delim)
         full_match = '%s.{0,80}?%s' % (pl_delim, pl_delim)
@@ -639,7 +639,7 @@ class XSSCharFinder(object):
             split_body = body[:match_offset]
                              # split the body at the tag, then take the last fragment
                              # which is closest to the injection point as regexed
-            line_no_tag = split_body.split(tag_delim)[-1].replace('\\"', '').replace("\\'", "")
+            line_no_tag = split_body.split(tag_delim)[-1]#.replace('\\"', '').replace("\\'", "")
             line = tag_delim + line_no_tag
             # Sometimes it may split wrong, in which case we drop that lxml match
             if line_no_tag.startswith('<doctype') or line_no_tag.startswith('<html'):
@@ -654,11 +654,12 @@ class XSSCharFinder(object):
                     attr_val = attr_dict[a]
                     break
 
-            unfiltered_chars = self.get_unfiltered_chars(payload, pl_delim, scolon_matches, match_offset)
+            #unfiltered_chars = self.get_unfiltered_chars(payload, pl_delim, scolon_matches, match_offset)
+            reflected_chars = self.get_reflected_chars(tag, attr, payload, pl_delim, scolon_matches, match_offset)
             # Common false+ shows only "> as unfiltered if script parses the chars between 2 unrelated delim strs
-            if unfiltered_chars == '">':
-                unfiltered_chars = ''
-            all_inj_data[match_offset] = [tag_index, tag, attr, attr_val, payload, unfiltered_chars, line]
+            if reflected_chars == '">':
+                reflected_chars = ''
+            all_inj_data[match_offset] = [tag_index, tag, attr, attr_val, payload, reflected_chars, line]
 
         return all_inj_data
 
@@ -860,22 +861,26 @@ class XSSCharFinder(object):
 
         return payload
 
-    def get_unfiltered_chars(self, payload, delim, scolon_matches, match_offset):
+    def get_reflected_chars(self, tag, attr, payload, delim, scolon_matches, match_offset):
         ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point
         Always returns a string '''
 
-        unfiltered_chars = []
         # Change the delim+test_str+delim payload to just test_str
         # Make sure js payloads remove escaped ' and ", also remove ;
         # since ; will show up in html encoded entities. If ; is unfiltered
         # it will be added after this function
         #escaped_chars = re.findall(r'\\(.)', chars)
-        chars_found = payload.replace(delim, '').replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
+        chars_between_delim = payload.replace(delim, '')#.replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
+        #If injection is inside script tag, remove the escaped chars
+        if tag == 'script' or attr in self.event_attributes():
+            chars_between_delim = chars_between_delim.replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
+        else:
+            chars_between_delim = chars_between_delim.replace("\\", "")
 
         # List for just the inj point
-        for c in chars_found:
-            if c in self.test_str:
-                unfiltered_chars.append(c)
+        #for c in chars_found:
+        #    if c in self.test_str:
+        #        unfiltered_chars.append(c)
 
  #       # Check if a colon needs to be added to the unfiltered chars
         for scolon_match in scolon_matches:
@@ -883,18 +888,18 @@ class XSSCharFinder(object):
             # Since scolon_match will only exist when ;9 was found
             scolon_offset = scolon_match[0]
             if match_offset == scolon_offset:
-                unfiltered_chars.append(';')
+                chars_between_delim += ';'
                 break
 
        # Catch pesky false positives usually inside super long script tags from 
        # fucked up html like lots of JSON in a script tag like google has on some pages
-        if len(unfiltered_chars) != len(set(unfiltered_chars)):
-            unfiltered_chars = ''
+       # if len(unfiltered_chars) != len(set(unfiltered_chars)):
+       #     unfiltered_chars = ''
 
-        unfiltered_chars = ''.join(unfiltered_chars)
+       # unfiltered_chars = ''.join(unfiltered_chars)
 
-        if len(unfiltered_chars) > 0:
-            return unfiltered_chars
+        if len(chars_between_delim) > 0:
+            return chars_between_delim
         else:
             return ''
 
