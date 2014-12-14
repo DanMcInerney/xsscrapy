@@ -35,16 +35,17 @@ class InjectedDupeFilter(object):
     def process_request(self, request, spider):
 
         meta = request.meta
-        if 'xss_place' not in meta or 'delim' not in meta:
+        if 'xss_place' not in meta:
             return
         delim = meta['delim']
 
         # Injected URL dupe handling
         if meta['xss_place'] == 'url':
+            url = request.url
             #replace the delim characters with nothing so we only test the URL
             #with the payload
-            url = request.url.replace(delim, '')
-            if url in URLS_SEEN:
+            no_delim_url = url.replace(delim, '')
+            if no_delim_url in URLS_SEEN:
                 raise IgnoreRequest
             spider.log('Sending payloaded URL: %s' % url)
             URLS_SEEN.add(url)

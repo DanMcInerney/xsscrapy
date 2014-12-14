@@ -10,12 +10,10 @@ import lxml.etree
 import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
-#from IPython import embed
+from IPython import embed
 
 class XSSCharFinder(object):
     def __init__(self):
-        self.redir_pld = 'JaVAscRIPT:prompt(99)'
-        self.test_str = '\'"(){}<x>:/'
         self.url_param_xss_items = []
 
     def process_item(self, item, spider):
@@ -24,6 +22,7 @@ class XSSCharFinder(object):
 
         payload = meta['payload']
         delim = meta['delim']
+        param = meta['xss_param']
         resp_url = response.url
         body = response.body
         mismatch = False
@@ -32,12 +31,9 @@ class XSSCharFinder(object):
         # Regex: ( ) mean group 1 is within the parens, . means any char,
         # {1,80} means match any char 0 to 80 times, 80 chosen because double URL encoding
         # ? makes the search nongreedy so it stops after hitting its limits
-        #full_match = '%s.*?%s' % (delim, delim)
         full_match = '%s.{0,80}?%s' % (delim, delim)
         # matches with semicolon which sometimes cuts results off
         sc_full_match = '%s.{0,80}?%s;9' % (delim, delim)
-        #chars_between_delims = '%s(.*?)%s' % (delim, delim)
-        #chars_between_delims = '%s(.{0,80}?)%s' % (delim, delim)
 
         # Quick sqli check based on DSSS
         dbms, regex = self.sqli_check(body, meta['orig_body'])
@@ -52,11 +48,13 @@ class XSSCharFinder(object):
 
         # XSS detection starts here
         re_matches = sorted([(m.start(), m.group()) for m in re.finditer(full_match, body)])
-        if re_matches:
+        if '/verifypasswd.php/1zqj' in resp_url:
+            embed()
+
+        if len(re_matches) > 0:
             scolon_matches = sorted([(m.start(), m.group()) for m in re.finditer(sc_full_match, body)])
             lxml_injs = self.get_lxml_matches(full_match, body, resp_url, delim)
             if lxml_injs:
-
                 err = None
                 if len(re_matches) != len(lxml_injs):
                     spider.log('Error: mismatch in injections found by lxml and regex. Higher chance of false positive for %s' % resp_url)
@@ -64,7 +62,6 @@ class XSSCharFinder(object):
                     mismatch = True
 
                 inj_data = self.combine_regex_lxml(lxml_injs, re_matches, scolon_matches, body, mismatch)
-
                 # If mismatch is True, then "for offset in sorted(inj_data)" will fail with TypeError
                 try:
                     for offset in sorted(inj_data):
@@ -239,8 +236,7 @@ class XSSCharFinder(object):
 
         tag_index, tag, attr, attr_val, payload, reflected_chars, line = injection
         pl_delim = payload[:7]
-        #full_match = '%s.*?%s' % (pl_delim, pl_delim)
-        full_match = '%s.{0,80}?%s' % (pl_delim, pl_delim)
+        full_match = '%s.{0,85}?%s' % (pl_delim, pl_delim)
         line = re.sub(full_match, 'INJECTION', line)
 
         all_chars_payloads = {}
@@ -375,6 +371,9 @@ class XSSCharFinder(object):
         # javascript:alert(1) vulns
         # We do this slicing operation because ;9 might be at the end
         # although it's unnecessary for the payload
+
+        # CHECK HERE, PASS DOWN THE ORIG ATTR VAL
+        #if delim+'subbed' in attr_val:
         if attr_val[:len(delim+'subbed')] == delim+'subbed':
             if tag == 'a' and attr == 'href':
                 # Only need : ( and ) to use javascript:prompt(4) redir payload
@@ -559,8 +558,7 @@ class XSSCharFinder(object):
         subbed_body = re.sub(full_match, sub, body)
         doc = self.html_parser(subbed_body, resp_url)
         lxml_injs = self.xpath_inj_points(sub, doc)
-        if lxml_injs:
-            return lxml_injs
+        return lxml_injs
 
     def html_parser(self, body, resp_url):
         try:
@@ -657,8 +655,8 @@ class XSSCharFinder(object):
             #unfiltered_chars = self.get_unfiltered_chars(payload, pl_delim, scolon_matches, match_offset)
             reflected_chars = self.get_reflected_chars(tag, attr, payload, pl_delim, scolon_matches, match_offset)
             # Common false+ shows only "> as unfiltered if script parses the chars between 2 unrelated delim strs
-            if reflected_chars == '">':
-                reflected_chars = ''
+            #if reflected_chars == '">':
+            #    reflected_chars = ''
             all_inj_data[match_offset] = [tag_index, tag, attr, attr_val, payload, reflected_chars, line]
 
         return all_inj_data
@@ -869,20 +867,16 @@ class XSSCharFinder(object):
         # Make sure js payloads remove escaped ' and ", also remove ;
         # since ; will show up in html encoded entities. If ; is unfiltered
         # it will be added after this function
-        #escaped_chars = re.findall(r'\\(.)', chars)
         chars_between_delim = payload.replace(delim, '')#.replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
+
         #If injection is inside script tag, remove the escaped chars
         if tag == 'script' or attr in self.event_attributes():
             chars_between_delim = chars_between_delim.replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
         else:
+            # If it's not a script then just remove the \'s otherwise they show up in Unfiltered in the item
             chars_between_delim = chars_between_delim.replace("\\", "")
 
-        # List for just the inj point
-        #for c in chars_found:
-        #    if c in self.test_str:
-        #        unfiltered_chars.append(c)
-
- #       # Check if a colon needs to be added to the unfiltered chars
+        # Check if a colon needs to be added to the unfiltered chars
         for scolon_match in scolon_matches:
             # Confirm the string offset of the match is the same
             # Since scolon_match will only exist when ;9 was found
