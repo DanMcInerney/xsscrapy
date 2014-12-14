@@ -10,7 +10,7 @@ import lxml.etree
 import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
-from IPython import embed
+#from IPython import embed
 
 class XSSCharFinder(object):
     def __init__(self):
@@ -48,8 +48,6 @@ class XSSCharFinder(object):
 
         # XSS detection starts here
         re_matches = sorted([(m.start(), m.group()) for m in re.finditer(full_match, body)])
-        if '/verifypasswd.php/1zqj' in resp_url:
-            embed()
 
         if len(re_matches) > 0:
             scolon_matches = sorted([(m.start(), m.group()) for m in re.finditer(sc_full_match, body)])
@@ -235,7 +233,7 @@ class XSSCharFinder(object):
         or a list of sets of potential breakout characters '''
 
         tag_index, tag, attr, attr_val, payload, reflected_chars, line = injection
-        pl_delim = payload[:7]
+        pl_delim = payload[:6]
         full_match = '%s.{0,85}?%s' % (pl_delim, pl_delim)
         line = re.sub(full_match, 'INJECTION', line)
 
@@ -630,7 +628,7 @@ class XSSCharFinder(object):
 
             match_offset = match[0]
             payload = match[1]
-            pl_delim = payload[:7]
+            pl_delim = payload[:6]
             sub = pl_delim+'subbed'
 
             match_offset = match[0]
