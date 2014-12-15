@@ -10,7 +10,7 @@ import lxml.etree
 import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
-#from IPython import embed
+from IPython import embed
 
 class XSSCharFinder(object):
     def __init__(self):
@@ -27,7 +27,7 @@ class XSSCharFinder(object):
         body = response.body
         mismatch = False
         error = None
-        orig_payload = payload.replace(delim, '').replace(';9', '') # xss char payload
+        fuzz_payload = payload.replace(delim, '').replace(';9', '') # xss char payload
         # Regex: ( ) mean group 1 is within the parens, . means any char,
         # {1,80} means match any char 0 to 80 times, 80 chosen because double URL encoding
         # ? makes the search nongreedy so it stops after hitting its limits
@@ -47,19 +47,20 @@ class XSSCharFinder(object):
         body = body.lower()
 
         # XSS detection starts here
-        re_matches = sorted([(m.start(), m.group()) for m in re.finditer(full_match, body)])
+        re_matches = sorted([(m.start(), m.group(), m.end()) for m in re.finditer(full_match, body)])
 
         if len(re_matches) > 0:
-            scolon_matches = sorted([(m.start(), m.group()) for m in re.finditer(sc_full_match, body)])
+            #scolon_matches = sorted([(m.start(), m.group()) for m in re.finditer(sc_full_match, body)])
+            # If regex finds anything, get lxml matches
             lxml_injs = self.get_lxml_matches(full_match, body, resp_url, delim)
             if lxml_injs:
                 err = None
                 if len(re_matches) != len(lxml_injs):
-                    spider.log('Error: mismatch in injections found by lxml and regex. Higher chance of false positive for %s' % resp_url)
+                    spider.log('Error: mismatch in injections found by lxml and regex; higher chance of false positive for %s' % resp_url)
                     error = 'Error: mismatch in injections found by lxml and regex; higher chance of false positive'
                     mismatch = True
 
-                inj_data = self.combine_regex_lxml(lxml_injs, re_matches, scolon_matches, body, mismatch)
+                inj_data = self.combine_regex_lxml(lxml_injs, re_matches, body, mismatch, payload, delim)
                 # If mismatch is True, then "for offset in sorted(inj_data)" will fail with TypeError
                 try:
                     for offset in sorted(inj_data):
@@ -85,9 +86,9 @@ class XSSCharFinder(object):
 
         # Catch all test payload chars no delims
         # Catches DB errors
-        pl_lines_found = self.payloaded_lines(body, orig_payload)
+        pl_lines_found = self.payloaded_lines(body, fuzz_payload)
         if pl_lines_found:
-            item = self.make_item(meta, resp_url, pl_lines_found, orig_payload, None)
+            item = self.make_item(meta, resp_url, pl_lines_found, fuzz_payload, None)
             if item:
                 item = self.url_item_filtering(item, spider)
                 item['error'] = 'Payload delims do not surround this injection point. Found via search for entire payload.'
@@ -199,40 +200,39 @@ class XSSCharFinder(object):
         # Unpack the injection
         #tag_index, tag, attr, attr_val, payload, unfiltered_chars, line = injection
         # get_unfiltered_chars() can only return a string 0+ characters, but never None
-        reflected_chars = injection[5]
+        unfiltered_chars = injection[5]
         payload = injection[4]
-        if ';' in reflected_chars:
-            payload += ';9'
         # injection[6] sometimes == '<p' maybe?
         # It happened POSTing chatRecord to http://service.taobao.com/support/minerva/robot_save_chat_record.htm
         # that page returned a Connection: Close header and no body
-        line = injection[6]+payload
+        ############### THIS NEEDS TO BE THE REFLECTED PAYLOAD
+        line = injection[6]
         item_found = None
 
         # get_reflected_chars() always returns a string
-        if len(reflected_chars) > 0:
+        if len(unfiltered_chars) > 0:
             chars_payloads = self.get_breakout_chars(injection, resp_url)
             # breakout_chars always returns a , never None
             if len(chars_payloads) > 0:
                 sugg_payloads = []
                 for chars in chars_payloads:
-                    if set(chars).issubset(set(reflected_chars)):
-                        # Get rid of possible payloads with > in them if > not in reflected_chars
+                    if set(chars).issubset(set(unfiltered_chars)):
+                        # Get rid of possible payloads with > in them if > not in unfiltered_chars
                         item_found = True
                         for possible_payload in chars_payloads[chars]:
-                            if '>' not in reflected_chars:
+                            if '>' not in unfiltered_chars:
                                 if '>' in possible_payload:
                                     continue
                             sugg_payloads.append(possible_payload)
 
                 if item_found:
-                    return self.make_item(meta, resp_url, line, reflected_chars, sugg_payloads)
+                    return self.make_item(meta, resp_url, line, unfiltered_chars, sugg_payloads)
 
     def get_breakout_chars(self, injection, resp_url):
         ''' Returns either None if no breakout chars were found
         or a list of sets of potential breakout characters '''
 
-        tag_index, tag, attr, attr_val, payload, reflected_chars, line = injection
+        tag_index, tag, attr, attr_val, payload, unfiltered_chars, line = injection
         pl_delim = payload[:6]
         full_match = '%s.{0,85}?%s' % (pl_delim, pl_delim)
         line = re.sub(full_match, 'INJECTION', line)
@@ -593,7 +593,7 @@ class XSSCharFinder(object):
         #    self.log('XMLSyntaxError from lxml on %s' % resp_url)
         #    return
 
-    def combine_regex_lxml(self, lxml_injs, full_matches, scolon_matches, body, mismatch):
+    def combine_regex_lxml(self, lxml_injs, full_matches, body, mismatch, payload, delim):
         ''' Combine lxml injection data with the 2 regex injection search data '''
 
         all_inj_data = {}
@@ -626,17 +626,16 @@ class XSSCharFinder(object):
             else:
                 tag_delim = '<'+tag
 
-            match_offset = match[0]
-            payload = match[1]
-            pl_delim = payload[:6]
-            sub = pl_delim+'subbed'
-
-            match_offset = match[0]
-            split_body = body[:match_offset]
+            match_start_offset = match[0]
+            ret_between_delim = match[1]
+            match_end_offset = match[2]
+            sub = delim+'subbed'
+            split_body = body[:match_start_offset]
+            ref_payload = body[match_start_offset:][:(match_end_offset - match_start_offset)+2]
                              # split the body at the tag, then take the last fragment
                              # which is closest to the injection point as regexed
             line_no_tag = split_body.split(tag_delim)[-1]#.replace('\\"', '').replace("\\'", "")
-            line = tag_delim + line_no_tag
+            line = tag_delim + line_no_tag + ref_payload
             # Sometimes it may split wrong, in which case we drop that lxml match
             if line_no_tag.startswith('<doctype') or line_no_tag.startswith('<html'):
                 line = ''
@@ -650,14 +649,48 @@ class XSSCharFinder(object):
                     attr_val = attr_dict[a]
                     break
 
-            #unfiltered_chars = self.get_unfiltered_chars(payload, pl_delim, scolon_matches, match_offset)
-            reflected_chars = self.get_reflected_chars(tag, attr, payload, pl_delim, scolon_matches, match_offset)
+            unfiltered_chars = self.get_unfiltered_chars(payload, ref_payload, delim, tag, attr)
             # Common false+ shows only "> as unfiltered if script parses the chars between 2 unrelated delim strs
-            #if reflected_chars == '">':
-            #    reflected_chars = ''
-            all_inj_data[match_offset] = [tag_index, tag, attr, attr_val, payload, reflected_chars, line]
+            #if unfiltered_chars == '">':
+            #    unfiltered_chars = ''
+            all_inj_data[match_start_offset] = [tag_index, tag, attr, attr_val, payload, unfiltered_chars, line]
 
         return all_inj_data
+
+    def get_unfiltered_chars(self, payload, ref_payload, delim, tag, attr):
+        """
+        Pull out just the unfiltered chars from the reflected chars
+        payload = delim+fuzz+delim+;9
+        """
+        # Remove delim from payload and add ;
+        ref_chars = ref_payload.replace(delim, '').replace('9', '')
+        fuzz_chars = payload.replace(delim, '').replace('9', '')
+        remove_chars = set([])
+        unfiltered_chars_list = []
+
+        html_entities = ['&#39', '&quot;', '&lt;', '&gt;']
+        # Remove html encoded entities
+        for entity in html_entities:
+            if entity in ref_chars:
+                ref_chars.replace(entity, '')
+
+        #If injection is inside script tag, remove the escaped chars
+        if tag == 'script' or attr in self.event_attributes():
+           ref_chars = ref_chars.replace("\\'", "").replace('\\"', '').replace('\;', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
+
+        for c in fuzz_chars:
+            if c in ref_chars:
+                continue
+            else:
+                remove_chars.add(c)
+
+        for char in fuzz_chars:
+            if char not in remove_chars:
+                unfiltered_chars_list.append(char)
+
+        unfiltered_chars = ''.join(unfiltered_chars_list)
+
+        return unfiltered_chars
 
     def accurate_attr(self, tag, attrs_attrvals, match, line):
         ''' lxml cannot determine the order of attrs which is important
@@ -857,43 +890,13 @@ class XSSCharFinder(object):
 
         return payload
 
-    def get_reflected_chars(self, tag, attr, payload, delim, scolon_matches, match_offset):
+    def get_reflected_chars(self, tag, attr, ref_payload, delim, body, match_end_offset):
         ''' Check for the special chars and append them to a master list of tuples, one tuple per injection point
         Always returns a string '''
 
-        # Change the delim+test_str+delim payload to just test_str
-        # Make sure js payloads remove escaped ' and ", also remove ;
-        # since ; will show up in html encoded entities. If ; is unfiltered
-        # it will be added after this function
-        chars_between_delim = payload.replace(delim, '')#.replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
+        returned_chars = ref_payload.replace(delim, '').replace('9','')
 
-        #If injection is inside script tag, remove the escaped chars
-        if tag == 'script' or attr in self.event_attributes():
-            chars_between_delim = chars_between_delim.replace("\\'", "").replace('\\"', '').replace(';', '').replace('\\>', '').replace('\\<', '').replace('\\/', '')
-        else:
-            # If it's not a script then just remove the \'s otherwise they show up in Unfiltered in the item
-            chars_between_delim = chars_between_delim.replace("\\", "")
-
-        # Check if a colon needs to be added to the unfiltered chars
-        for scolon_match in scolon_matches:
-            # Confirm the string offset of the match is the same
-            # Since scolon_match will only exist when ;9 was found
-            scolon_offset = scolon_match[0]
-            if match_offset == scolon_offset:
-                chars_between_delim += ';'
-                break
-
-       # Catch pesky false positives usually inside super long script tags from 
-       # fucked up html like lots of JSON in a script tag like google has on some pages
-       # if len(unfiltered_chars) != len(set(unfiltered_chars)):
-       #     unfiltered_chars = ''
-
-       # unfiltered_chars = ''.join(unfiltered_chars)
-
-        if len(chars_between_delim) > 0:
-            return chars_between_delim
-        else:
-            return ''
+        return returned_chars
 
     def url_item_filtering(self, item, spider):
         ''' Make sure we're not just repeating the same URL XSS over and over '''

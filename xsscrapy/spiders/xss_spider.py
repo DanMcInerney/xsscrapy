@@ -419,7 +419,7 @@ class XSSspider(CrawlSpider):
     def payload_end_of_url(self, url):
         ''' Payload the end of the URL to catch some DOM(?) and other reflected XSSes '''
 
-        payload = self.make_payload()
+        payload = self.make_payload().replace('/', '')
         # Make URL test and delim strings unique
         if url[-1] == '/':
             payloaded_url = url+payload
