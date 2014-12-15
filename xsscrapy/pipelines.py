@@ -630,10 +630,18 @@ class XSSCharFinder(object):
             ret_between_delim = match[1]
             match_end_offset = match[2]
             sub = delim+'subbed'
+
+            start_of_match = body[match_start_offset:]
+            ref_payload_plus_2 = start_of_match[:(match_end_offset - match_start_offset)+2]
+            ref_payload = start_of_match[:(match_end_offset - match_start_offset)]
+            # ref_payload would only equal ref_payload_plus_2 if ;9 doesn't exist
+            if ref_payload != ref_payload_plus_2:
+                if ref_payload_plus_2[-2:] == ';9':
+                    ref_payload = ref_payload_plus_2
+
+            # split the body at the tag, then take the last fragment
+            # which is closest to the injection point as regexed
             split_body = body[:match_start_offset]
-            ref_payload = body[match_start_offset:][:(match_end_offset - match_start_offset)+2]
-                             # split the body at the tag, then take the last fragment
-                             # which is closest to the injection point as regexed
             line_no_tag = split_body.split(tag_delim)[-1]#.replace('\\"', '').replace("\\'", "")
             line = tag_delim + line_no_tag + ref_payload
             # Sometimes it may split wrong, in which case we drop that lxml match
@@ -662,7 +670,7 @@ class XSSCharFinder(object):
         Pull out just the unfiltered chars from the reflected chars
         payload = delim+fuzz+delim+;9
         """
-        # Remove delim from payload and add ;
+
         ref_chars = ref_payload.replace(delim, '').replace('9', '')
         fuzz_chars = payload.replace(delim, '').replace('9', '')
         remove_chars = set([])
