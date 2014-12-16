@@ -50,6 +50,7 @@ Tests
 * Referer
 * URL variables
 * End of URL
+* URL path
 * Forms both hidden and explicit
 
 FAQ
