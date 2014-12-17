@@ -70,10 +70,13 @@ class XSSspider(CrawlSpider):
         u = urlparse(response.url)
         self.base_url = u.scheme+'://'+u.netloc
         robots_url = self.base_url+'/robots.txt'
-        robot_req = [Request(robots_url, callback=self.robot_parser)]
+        robot_req = Request(robots_url, callback=self.robot_parser)
+        404_url = self.start_urls[0]+'/requestXaX404'
+        404_req = Request(404_url, callback=self.parse_resp)
 
         reqs = self.parse_resp(response)
-        reqs += robot_req
+        reqs.append(robot_req)
+        reqs.append(404_req)
         return reqs
 
     #### Handle logging in if username and password are given as arguments ####
