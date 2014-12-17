@@ -28,6 +28,8 @@ __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 
 class XSSspider(CrawlSpider):
     name = 'xsscrapy'
+    # Scrape 404 pages too
+    handle_httpstatus_list = [404]
 
     # If you're logging into a site with a logout link, you'll want to
     # uncomment the rule below and comment the shorter one right after to
