@@ -29,13 +29,12 @@ __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 class XSSspider(CrawlSpider):
     name = 'xsscrapy'
     # Scrape 404 pages too
-    handle_httpstatus_list = [404]
+    handle_httpstatus_list = [x for x in xrange(0,600)]
 
     # If you're logging into a site with a logout link, you'll want to
     # uncomment the rule below and comment the shorter one right after to
     # prevent yourself from being logged out automatically
-    #rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
-    rules = (Rule(LinkExtractor(deny='contactus'), callback='parse_resp', follow=True), )
+    rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
 
     def __init__(self, *args, **kwargs):
         # run using: scrapy crawl xss_spider -a url='http://example.com'
