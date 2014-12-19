@@ -31,9 +31,6 @@ class XSSspider(CrawlSpider):
     # Scrape 404 pages too
     handle_httpstatus_list = [x for x in xrange(0,600)]
 
-    # If you're logging into a site with a logout link, you'll want to
-    # uncomment the rule below and comment the shorter one right after to
-    # prevent yourself from being logged out automatically
     rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
 
     def __init__(self, *args, **kwargs):
