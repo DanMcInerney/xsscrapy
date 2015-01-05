@@ -10,7 +10,7 @@ import lxml.etree
 import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
-from IPython import embed
+#from IPython import embed
 
 class XSSCharFinder(object):
     def __init__(self):
