@@ -3,6 +3,7 @@
 import argparse
 from scrapy.cmdline import execute
 from xsscrapy.spiders.xss_spider import XSSspider
+import sys
 
 __author__ = 'Dan McInerney'
 __license__ = 'BSD'
