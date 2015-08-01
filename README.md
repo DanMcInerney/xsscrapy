@@ -32,7 +32,7 @@ If you want to rate limit to 60 requests per minute:
 ```
 
 
-XSS vulnerabilities are reported in xsscrapy-vulns.txt
+XSS vulnerabilities are reported in example.com-vulns.txt or xsscrapy-vulns.txt when no domain can be extracted
 
 
 Dependencies
