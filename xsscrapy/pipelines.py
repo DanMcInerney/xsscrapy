@@ -15,6 +15,7 @@ import itertools
 class XSSCharFinder(object):
     def __init__(self):
         self.url_param_xss_items = []
+        self.filename = ""
 
     def process_item(self, item, spider):
         response = item['resp']
@@ -957,7 +958,26 @@ class XSSCharFinder(object):
         return event_attributes
 
     def write_to_file(self, item, spider):
-        with open('xsscrapy-vulns.txt', 'a+') as f:
+    	if not self.filename:
+            response = item['resp']
+            url = response.url
+            
+            # setting a default filename
+            filename = "xsscrapy-vulns.txt"
+            
+            # splitting off the protocol
+            s1 = url.split("//")
+            if len(s1) >= 2:
+                # splitting off any path behind the domain
+                s2 = s1[1].split("/")
+                if len(s2) >= 2:
+                    # replacement of www with empty
+                    filename = s2[0].replace("www.", "") + "-vulns.txt"
+            
+            # setting the final filename: a domain-vulns.txt or xsscrapy-vulns.txt
+            self.filename = filename
+				
+        with open(self.filename, 'a+') as f:
             f.write('\n')
 
             f.write('URL: '+item['orig_url']+'\n')
