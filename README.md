@@ -42,6 +42,12 @@ wget -O https://bootstrap.pypa.io/get-pip.py
 python get-pip.py
 pip install -r requirements.txt
 ```
+May need additional libraries depending on OS.
+libxml2
+libxslt
+zlib
+libffi
+openssl (sometimes libssl-dev)
 
 Tests
 -------
