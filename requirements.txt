@@ -2,3 +2,11 @@ Scrapy==0.24.4
 pybloom==1.1
 requests
 beautifulsoup
+Twisted
+w3lib
+lxml
+six
+cssselect
+pyopenssl
+cryptography
+queuelib
