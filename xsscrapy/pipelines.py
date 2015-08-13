@@ -11,10 +11,22 @@ import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
 #from IPython import embed
+from urlparse import urlparse
 
 class XSSCharFinder(object):
     def __init__(self):
         self.url_param_xss_items = []
+
+    def get_filename(self, url):
+        filename = 'xsscrapy-vulns.txt'
+        up = urlparse(url).netloc.replace('www.', '').split(':')[0]
+        if up:
+            filename = up + '.txt'
+            
+        return filename
+        
+    def open_spider(self, spider):
+        self.filename = self.get_filename(spider.url)
 
     def process_item(self, item, spider):
         response = item['resp']
@@ -957,7 +969,7 @@ class XSSCharFinder(object):
         return event_attributes
 
     def write_to_file(self, item, spider):
-        with open('xsscrapy-vulns.txt', 'a+') as f:
+        with open(self.filename, 'a+') as f:
             f.write('\n')
 
             f.write('URL: '+item['orig_url']+'\n')
