@@ -45,13 +45,24 @@ class XSSspider(CrawlSpider):
         # gruyere or the second cookie delim
         self.test_str = '\'"(){}<x>:/'
 
-        # Login details
+        # Login details. Either user or cookie
         self.login_user = kwargs.get('user')
+        self.login_cookie_key = kwargs.get('cookie_key')
+        self.login_cookie_value = kwargs.get('cookie_value')
+
+        # Turn Nones to Nones
         if self.login_user == 'None':
             self.login_user = None
-        else:
-            # Don't hit links with 'logout' in them since self.login_user exists
+        if self.login_cookie_key == 'None':
+            self.login_cookie_key = None
+        if self.login_cookie_value == 'None':
+            self.login_cookie_value = None
+
+        if self.login_user or (self.login_cookie_key and self.login_cookie_value):
+            # Don't hit links with 'logout' in them since self.login_user or cookies exists
             self.rules = (Rule(LinkExtractor(deny=('logout')), callback='parse_resp', follow=True), )
+
+        # If password is not set and login user is then get password, otherwise set it
         if kwargs.get('pw') == 'None' and self.login_user is not None:
             self.login_pass = raw_input("Please enter the password: ")
         else:
@@ -83,11 +94,24 @@ class XSSspider(CrawlSpider):
             otherwise pass it to the normal callback function '''
         if self.login_user and self.login_pass:
             if self.basic_auth == 'true':
-                yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
+                # Take out the callback arg so crawler falls back to the rules' callback
+                if self.login_cookie_key and self.login_cookie_value:
+                    yield Request(url=self.start_urls[0], cookies={self.login_cookie_key: self.login_cookie_value})
+                else:
+                    yield Request(url=self.start_urls[0])
             else:
-                yield Request(url=self.start_urls[0], callback=self.login)
+                if self.login_cookie_key and self.login_cookie_value:
+                    yield Request(url=self.start_urls[0],
+                                  cookies={self.login_cookie_key: self.login_cookie_value},
+                                  callback=self.login)
+                else:
+                    yield Request(url=self.start_urls[0], callback=self.login)
         else:
-            yield Request(url=self.start_urls[0]) # Take out the callback arg so crawler falls back to the rules' callback
+            # Take out the callback arg so crawler falls back to the rules' callback
+            if self.login_cookie_key and self.login_cookie_value:
+                yield Request(url=self.start_urls[0], cookies={self.login_cookie_key: self.login_cookie_value})
+            else:
+                yield Request(url=self.start_urls[0])
 
     def login(self, response):
         ''' Fill out the login form and return the request'''

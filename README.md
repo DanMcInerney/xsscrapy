@@ -21,6 +21,11 @@ If you wish to login with HTTP Basic Auth then crawl:
 ./xsscrapy.py -u http://example.com/login_page -l loginname --basic
 ```
 
+If you wish to use cookies:
+```shell
+./xsscrapy.py -u http://example.com/login_page --cookie "SessionID=abcdef1234567890"
+```
+
 If you wish to limit simultaneous connections to 20: 
 ```shell
 ./xsscrapy.py -u http://example.com -c 20
