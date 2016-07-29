@@ -11,6 +11,7 @@ import lxml.html
 from lxml.html import soupparser, fromstring
 import itertools
 #from IPython import embed
+from socket import gaierror, gethostbyname
 from urlparse import urlparse
 
 class XSSCharFinder(object):
@@ -54,6 +55,17 @@ class XSSCharFinder(object):
             item = self.make_item(meta, resp_url, msg, 'N/A', None)
             self.write_to_file(item, spider)
             item = None
+
+        # Check for script tags pointing to a no longer registered domain
+        unclaimedURL = self.unclaimedURL_check(body)
+        if unclaimedURL:
+            msg = 'Found non-registered domain in script tag! Non-registered URL: %s' % unclaimedURL
+            with open(self.filename, 'a+') as f:
+                f.write('\n')
+                f.write('URL: '+resp_url+'\n')
+                spider.log('    URL: '+resp_url+'\n', level='INFO')
+                f.write(msg+'\n')
+                spider.log('    '+msg+'\n', level='INFO')
 
         # Now that we've checked for SQLi, we can lowercase the body
         body = body.lower()
@@ -200,6 +212,20 @@ class XSSCharFinder(object):
         #for e in SQL_errors:
         #    if e in body and e not in orig_body:
         #        return e
+
+    def unclaimedURL_check(self, body):
+        tree = fromstring(body)
+        scriptURLs = tree.xpath('//script/@src')
+        for url in scriptURLs:
+            parser = urlparse(url)
+            domain = parser.netloc
+            try:
+                gethostbyname(domain)
+                resolved = True
+            except gaierror:
+                resolved = False
+            if resolved == False:
+                return url
 
     def xss_logic(self, injection, meta, resp_url, error):
         ''' XSS logic. Returns None if vulnerability not found 
