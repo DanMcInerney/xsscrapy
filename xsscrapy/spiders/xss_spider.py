@@ -1,7 +1,7 @@
 # -- coding: utf-8 --
 
-from scrapy.contrib.linkextractors import LinkExtractor
-from scrapy.contrib.spiders import CrawlSpider, Rule
+from scrapy.linkextractors import LinkExtractor
+from scrapy.spiders import CrawlSpider, Rule
 from scrapy.http import FormRequest, Request
 from scrapy.selector import Selector
 from xsscrapy.items import inj_resp
