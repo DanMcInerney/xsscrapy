@@ -38,3 +38,5 @@ ITEM_PIPELINES = {'xsscrapy.pipelines.XSSCharFinder':100}
 
 CONCURRENT_REQUESTS = 30
 
+# If you get bloom filter problems, increase this number
+bloomfilterSize = 300000
