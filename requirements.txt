@@ -1,4 +1,4 @@
-Scrapy==0.24.4
+Scrapy==1.1.0rc3
 pybloom==1.1
 requests
 beautifulsoup
