@@ -29,7 +29,8 @@ __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 class XSSspider(CrawlSpider):
     name = 'xsscrapy'
     # Scrape 404 pages too
-    handle_httpstatus_list = [x for x in xrange(0,600)]
+    handle_httpstatus_list = [x for x in xrange(0,300)]+[x for x in xrange(400,600)]
+
 
     rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
 
@@ -172,10 +173,10 @@ class XSSspider(CrawlSpider):
             doc = lxml.html.fromstring(body, base_url=orig_url)
         except lxml.etree.ParserError:
             self.log('ParserError from lxml on %s' % orig_url)
-            return
+            return []
         except lxml.etree.XMLSyntaxError:
             self.log('XMLSyntaxError from lxml on %s' % orig_url)
-            return
+            return []
 
         forms = doc.xpath('//form')
         payload = self.test_str
@@ -309,6 +310,8 @@ class XSSspider(CrawlSpider):
                                                     'orig_url':orig_url,
                                                     'xss_place':'form',
                                                     'POST_to':url,
+                                                    'dont_redirect': True,
+                                                    'handle_httpstatus_list' : range(300,309),
                                                     'delim':payload[:len(self.delim)+2]},
                                               dont_filter=True,
                                               callback=self.xss_chars_finder)
@@ -334,6 +337,8 @@ class XSSspider(CrawlSpider):
                               'xss_param':xss_param,
                               'orig_url':url,
                               'payload':payload,
+                              'dont_redirect': True,
+                              'handle_httpstatus_list' : range(300,309),
                               'delim':payload[:len(self.delim)+2]},
                         cookies={'userinput':payload},
                         callback=self.xss_chars_finder,
@@ -558,6 +563,8 @@ class XSSspider(CrawlSpider):
                               'xss_param':url[1],
                               'orig_url':orig_url,
                               'payload':url[2],
+                              'dont_redirect': True,
+                              'handle_httpstatus_list' : range(300,309),
                               'delim':url[2][:len(self.delim)+2]},
                         callback = self.xss_chars_finder)
                         for url in payloaded_urls] # Meta is the payload
@@ -577,6 +584,8 @@ class XSSspider(CrawlSpider):
                               'orig_url':url,
                               'payload':payload,
                               'delim':payload[:len(self.delim)+2],
+                              'dont_redirect': True,
+                              'handle_httpstatus_list' : range(300,309),
                               'UA':self.get_user_agent(inj_header, payload)},
                         dont_filter=True,
                         callback = self.xss_chars_finder)
