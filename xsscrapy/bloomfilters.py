@@ -1,6 +1,6 @@
 from pybloom import BloomFilter
 from scrapy.utils.job import job_dir
-from scrapy.dupefilter import BaseDupeFilter
+from scrapy.dupefilters import BaseDupeFilter
 
 class BloomURLDupeFilter(BaseDupeFilter):
     """Request Fingerprint duplicates filter"""
