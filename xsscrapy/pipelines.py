@@ -13,6 +13,7 @@ import itertools
 #from IPython import embed
 from socket import gaierror, gethostbyname
 from urlparse import urlparse
+from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG
 
 class XSSCharFinder(object):
     def __init__(self):
@@ -63,9 +64,9 @@ class XSSCharFinder(object):
             with open(self.filename, 'a+') as f:
                 f.write('\n')
                 f.write('URL: '+resp_url+'\n')
-                spider.log('    URL: '+resp_url+'\n', level='INFO')
+                spider.log('    URL: '+resp_url+'\n', level=INFO)
                 f.write(msg+'\n')
-                spider.log('    '+msg+'\n', level='INFO')
+                spider.log('    '+msg+'\n', level=INFO)
 
         # Now that we've checked for SQLi, we can lowercase the body
         body = body.lower()
@@ -999,37 +1000,37 @@ class XSSCharFinder(object):
             f.write('\n')
 
             f.write('URL: '+item['orig_url']+'\n')
-            spider.log('    URL: '+item['orig_url'], level='INFO')
+            spider.log('    URL: '+item['orig_url'], level=INFO)
 
             f.write('response URL: '+item['resp_url']+'\n')
-            spider.log('    response URL: '+item['resp_url'], level='INFO')
+            spider.log('    response URL: '+item['resp_url'], level=INFO)
 
             if 'POST_to' in item:
                 f.write('POST url: '+item['POST_to']+'\n')
-                spider.log('    POST url: '+item['POST_to'], level='INFO')
+                spider.log('    POST url: '+item['POST_to'], level=INFO)
 
             f.write('Unfiltered: '+item['unfiltered']+'\n')
-            spider.log('    Unfiltered: '+item['unfiltered'], level='INFO')
+            spider.log('    Unfiltered: '+item['unfiltered'], level=INFO)
 
             f.write('Payload: '+item['xss_payload']+'\n')
-            spider.log('    Payload: '+item['xss_payload'], level='INFO')
+            spider.log('    Payload: '+item['xss_payload'], level=INFO)
 
             f.write('Type: '+item['xss_place']+'\n')
-            spider.log('    Type: '+item['xss_place'], level='INFO')
+            spider.log('    Type: '+item['xss_place'], level=INFO)
 
             f.write('Injection point: '+item['xss_param']+'\n')
-            spider.log('    Injection point: '+item['xss_param'], level='INFO')
+            spider.log('    Injection point: '+item['xss_param'], level=INFO)
 
             if 'sugg_payloads' in item:
                 f.write('Possible payloads: '+item['sugg_payloads']+'\n')
-                spider.log('    Possible payloads: '+item['sugg_payloads'], level='INFO')
+                spider.log('    Possible payloads: '+item['sugg_payloads'], level=INFO)
 
             # Cut off the line at 500
             #f.write('Line: '+item['line'][-500:]+'\n')
             f.write('Line: '+item['line']+'\n')
-            spider.log('    Line: '+item['line'], level='INFO')
+            spider.log('    Line: '+item['line'], level=INFO)
 
             if 'error' in item:
                 f.write('Error: '+item['error']+'\n')
-                spider.log('    Error: '+item['error'], level='INFO')
+                spider.log('    Error: '+item['error'], level=INFO)
 
