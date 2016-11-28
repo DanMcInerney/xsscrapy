@@ -18,6 +18,7 @@ from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG
 class XSSCharFinder(object):
     def __init__(self):
         self.url_param_xss_items = []
+        self.filename = ""
 
     def get_filename(self, url):
         filename = 'xsscrapy-vulns.txt'
@@ -32,6 +33,26 @@ class XSSCharFinder(object):
 
     def process_item(self, item, spider):
         response = item['resp']
+        
+        # when no filename has been determined, get it the first time this is executed
+        if not self.filename:
+            url = response.url
+            
+            # setting a default filename
+            filename = "xsscrapy-vulns.txt"
+            
+            # splitting off the protocol
+            s1 = url.split("//")
+            if len(s1) >= 2:
+                # splitting off any path behind the domain
+                s2 = s1[1].split("/")
+                if len(s2) >= 2:
+                    # replacement of www with empty
+                    filename = s2[0].replace("www.", "") + "-vulns.txt"
+            
+            # setting the final filename: a domain-vulns.txt or xsscrapy-vulns.txt
+            self.filename = filename
+        
         meta = response.meta
 
         payload = meta['payload']
