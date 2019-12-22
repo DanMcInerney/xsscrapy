@@ -36,6 +36,11 @@ If you want to rate limit to 60 requests per minute:
 ./xsscrapy.py -u http://example.com/ -r 60
 ```
 
+If you want to run using Docker:
+```
+docker build -t xsscrapy .
+docker run -it --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp xsscrapy [YOUR_PARAMETERS_AS_DESCRIBED_ABOVE]
+```
 
 XSS vulnerabilities are reported in xsscrapy-vulns.txt
 
