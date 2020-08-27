@@ -3,7 +3,7 @@
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 from scrapy.exceptions import DropItem
-import HTMLParser
+import html.parser
 from xsscrapy.items import vuln#, inj_resp
 import re
 import lxml.etree
@@ -12,7 +12,7 @@ from lxml.html import soupparser, fromstring
 import itertools
 #from IPython import embed
 from socket import gaierror, gethostbyname
-from urlparse import urlparse
+from urllib.parse import urlparse
 from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG
 
 class XSSCharFinder(object):
@@ -839,7 +839,7 @@ class XSSCharFinder(object):
                 # Just make them useless by entering empty tag and putting them at the end of the lxml matches
                 # so a split at tag won't find anything
                 if not tag_index:
-                    print ' '*36+'ERROR: Error: could not find tag index location. Element does not exist in root doc.'
+                    print(' '*36+'ERROR: Error: could not find tag index location. Element does not exist in root doc.')
                     tag_index = 999999999
                     tag = ''
                 loc_tag = (tag_index, tag)
@@ -885,7 +885,7 @@ class XSSCharFinder(object):
             # x = http://lxml.de/api/lxml.etree._Element-class.html
             tag_index = self.get_elem_position(x, doc)
             tag = x.tag
-            items = x.items()
+            items = list(x.items())
             for i in items:
                 #i = (attr, attr_val)
                 attr = i[0]
@@ -929,11 +929,11 @@ class XSSCharFinder(object):
     def unescape_payload(self, payload):
         ''' Unescape the various payload encodings (html and url encodings)'''
         if '%' in payload:
-            payload = urllib.unquote_plus(payload)
+            payload = urllib.parse.unquote_plus(payload)
             #if '%' in payload: # in case we ever add double url encoding like %2522 for dub quote
             #    payload = urllib.unquote_plus(payload)
         # only html-encoded payloads will have & in them
-        payload = HTMLParser.HTMLParser().unescape(payload)
+        payload = html.parser.HTMLParser().unescape(payload)
 
         return payload
 

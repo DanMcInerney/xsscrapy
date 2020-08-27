@@ -1,9 +1,9 @@
 from scrapy.exceptions import IgnoreRequest
-from urlparse import unquote
+from urllib.parse import unquote
 from pybloom import BloomFilter
 import random
 import re
-from settings import bloomfilterSize
+from .settings import bloomfilterSize
 
 # Filter out duplicate requests with Bloom filters since they're much easier on memory
 #URLS_FORMS_HEADERS = BloomFilter(3000000, 0.00001)

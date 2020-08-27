@@ -6,15 +6,15 @@ from scrapy.http import FormRequest, Request
 from scrapy.selector import Selector
 from xsscrapy.items import inj_resp
 from xsscrapy.loginform import fill_login_form
-from urlparse import urlparse, parse_qsl, urljoin, urlunparse, urlunsplit
+from urllib.parse import urlparse, parse_qsl, urljoin, urlunparse, urlunsplit
 
 from scrapy.http.cookies import CookieJar
-from cookielib import Cookie
+from http.cookiejar import Cookie
 
 from lxml.html import soupparser, fromstring
 import lxml.etree
 import lxml.html
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import re
 import sys
 import cgi
@@ -29,7 +29,7 @@ __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 class XSSspider(CrawlSpider):
     name = 'xsscrapy'
     # Scrape 404 pages too
-    handle_httpstatus_list = [x for x in xrange(0,300)]+[x for x in xrange(400,600)]
+    handle_httpstatus_list = [x for x in range(0,300)]+[x for x in range(400,600)]
 
 
     rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
@@ -65,7 +65,7 @@ class XSSspider(CrawlSpider):
 
         # If password is not set and login user is then get password, otherwise set it
         if kwargs.get('pw') == 'None' and self.login_user is not None:
-            self.login_pass = raw_input("Please enter the password: ")
+            self.login_pass = input("Please enter the password: ")
         else:
             self.login_pass = kwargs.get('pw')
 
@@ -248,7 +248,7 @@ class XSSspider(CrawlSpider):
 
         url = None
         for i in all_frames:
-            if type(i) == unicode:
+            if type(i) == str:
                 i = str(i).strip()
             # Nonrelative path
             if '://' in i:
@@ -311,7 +311,7 @@ class XSSspider(CrawlSpider):
                                                     'xss_place':'form',
                                                     'POST_to':url,
                                                     'dont_redirect': True,
-                                                    'handle_httpstatus_list' : range(300,309),
+                                                    'handle_httpstatus_list' : list(range(300,309)),
                                                     'delim':payload[:len(self.delim)+2]},
                                               dont_filter=True,
                                               callback=self.xss_chars_finder)
@@ -338,7 +338,7 @@ class XSSspider(CrawlSpider):
                               'orig_url':url,
                               'payload':payload,
                               'dont_redirect': True,
-                              'handle_httpstatus_list' : range(300,309),
+                              'handle_httpstatus_list' : list(range(300,309)),
                               'delim':payload[:len(self.delim)+2]},
                         cookies={'userinput':payload},
                         callback=self.xss_chars_finder,
@@ -364,7 +364,7 @@ class XSSspider(CrawlSpider):
                 payload = query[2]
                                            # scheme       #netlo         #path          #params        #query (url params) #fragment
                 payloaded_url = urlunparse((parsed_url[0], parsed_url[1], parsed_url[2], parsed_url[3], query_str, parsed_url[5]))
-                payloaded_url = urllib.unquote(payloaded_url)
+                payloaded_url = urllib.parse.unquote(payloaded_url)
                 payloaded_urls.append((payloaded_url, params, payload))
 
             # Payload the URL path
@@ -393,7 +393,7 @@ class XSSspider(CrawlSpider):
             path = path + '/' + payload + '/'
                                     #scheme, netloc, path, params, query (url params), fragment
         payloaded_url = urlunparse((parsed_url[0], parsed_url[1], path, parsed_url[3], parsed_url[4], parsed_url[5]))
-        payloaded_url = urllib.unquote(payloaded_url)
+        payloaded_url = urllib.parse.unquote(payloaded_url)
         payloaded_data = (payloaded_url, 'URL path', payload)
 
         return payloaded_data
@@ -407,7 +407,7 @@ class XSSspider(CrawlSpider):
         changed_params = []
         modified = False
         # Create a list of lists where num of lists = len(params)
-        for x in xrange(0, len(url_params)):
+        for x in range(0, len(url_params)):
             single_url_params = []
 
             # Make the payload
@@ -429,7 +429,7 @@ class XSSspider(CrawlSpider):
                     single_url_params.append(p)
 
             # Add the modified, urlencoded params to the master list
-            new_payloaded_params.append((urllib.urlencode(single_url_params), modified, payload))
+            new_payloaded_params.append((urllib.parse.urlencode(single_url_params), modified, payload))
             # Reset the changed parameter tracker
             modified = False
 
@@ -467,8 +467,8 @@ class XSSspider(CrawlSpider):
         if netloc and protocol and path:
             for payload in modded_params:
                 for params in modded_params[payload]:
-                    joinedParams = urllib.urlencode(params, doseq=1) # doseq maps the params back together
-                    newURL = urllib.unquote(protocol+netloc+path+'?'+joinedParams)
+                    joinedParams = urllib.parse.urlencode(params, doseq=1) # doseq maps the params back together
+                    newURL = urllib.parse.unquote(protocol+netloc+path+'?'+joinedParams)
 
                     # Prevent nonpayloaded URLs
                     if self.test_str not in newURL:
@@ -509,7 +509,7 @@ class XSSspider(CrawlSpider):
         # This preserves the order of the URL parameters and will also
         # test each parameter individually instead of all at once
         allModdedParams[payload] = []
-        for x in xrange(0, len(params)):
+        for x in range(0, len(params)):
             for p in params:
                 param = p[0]
                 value = p[1]
@@ -564,7 +564,7 @@ class XSSspider(CrawlSpider):
                               'orig_url':orig_url,
                               'payload':url[2],
                               'dont_redirect': True,
-                              'handle_httpstatus_list' : range(300,309),
+                              'handle_httpstatus_list' : list(range(300,309)),
                               'delim':url[2][:len(self.delim)+2]},
                         callback = self.xss_chars_finder)
                         for url in payloaded_urls] # Meta is the payload
@@ -585,7 +585,7 @@ class XSSspider(CrawlSpider):
                               'payload':payload,
                               'delim':payload[:len(self.delim)+2],
                               'dont_redirect': True,
-                              'handle_httpstatus_list' : range(300,309),
+                              'handle_httpstatus_list' : list(range(300,309)),
                               'UA':self.get_user_agent(inj_header, payload)},
                         dont_filter=True,
                         callback = self.xss_chars_finder)

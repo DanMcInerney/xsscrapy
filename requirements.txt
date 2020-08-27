@@ -1,8 +1,8 @@
-Scrapy==1.1.0rc3
-pybloom==1.1
+scrapy
+git+https://github.com/jaybaird/python-bloomfilter.git#egg=pybloom
 requests
-beautifulsoup
-twisted==16.6.0
+beautifulsoup4
+twisted
 w3lib
 lxml
 six

@@ -11,7 +11,7 @@ __version__ = '1.0'  # also update setup.py
 def _form_score(form):
     score = 0
     # In case of user/pass or user/pass/remember-me
-    if len(form.inputs.keys()) in (2, 3):
+    if len(list(form.inputs.keys())) in (2, 3):
         score += 10
 
     typecount = defaultdict(int)
@@ -93,9 +93,9 @@ def main():
 
     r = requests.get(args.url)
     values, action, method = fill_login_form(args.url, r.text, args.username, args.password)
-    print('url: {0}\nmethod: {1}\npayload:'.format(action, method))
+    print(('url: {0}\nmethod: {1}\npayload:'.format(action, method)))
     for k, v in values:
-        print('- {0}: {1}'.format(k, v))
+        print(('- {0}: {1}'.format(k, v)))
 
 
 if __name__ == '__main__':
