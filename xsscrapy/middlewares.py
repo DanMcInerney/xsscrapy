@@ -3,7 +3,7 @@ from urlparse import unquote
 from pybloom import BloomFilter
 import random
 import re
-from settings import bloomfilterSize
+from xsscrapy.settings import bloomfilterSize
 
 # Filter out duplicate requests with Bloom filters since they're much easier on memory
 #URLS_FORMS_HEADERS = BloomFilter(3000000, 0.00001)
