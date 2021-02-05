@@ -43,7 +43,7 @@ XSS vulnerabilities are reported in xsscrapy-vulns.txt
 Dependencies
 -------
 ``` shell
-wget -O https://bootstrap.pypa.io/get-pip.py
+wget -O -u https://bootstrap.pypa.io/get-pip.py
 python get-pip.py
 pip install -r requirements.txt
 ```
