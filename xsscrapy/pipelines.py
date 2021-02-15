@@ -24,9 +24,9 @@ class XSSCharFinder(object):
         up = urlparse(url).netloc.replace('www.', '').split(':')[0]
         if up:
             filename = up + '.txt'
-            
+
         return filename
-        
+
     def open_spider(self, spider):
         self.filename = self.get_filename(spider.url)
 
@@ -69,7 +69,7 @@ class XSSCharFinder(object):
                 spider.log('    '+msg+'\n', level=INFO)
 
         # Now that we've checked for SQLi, we can lowercase the body
-        body = body.lower()
+        body = body.lower().decode()
 
         # XSS detection starts here
         re_matches = sorted([(m.start(), m.group(), m.end()) for m in re.finditer(full_match, body)])
@@ -134,7 +134,7 @@ class XSSCharFinder(object):
                        "Microsoft Access":     (r"Microsoft Access Driver", r"JET Database Engine", r"Access Database Engine"),
                        "Oracle":               (r"ORA-[0-9][0-9][0-9][0-9]", r"Oracle error", r"Oracle.*Driver", r"Warning.*\Woci_.*", r"Warning.*\Wora_.*")}
         for (dbms, regex) in ((dbms, regex) for dbms in DBMS_ERRORS for regex in DBMS_ERRORS[dbms]):
-            if re.search(regex, body, re.I) and not re.search(regex, orig_body, re.I):
+            if re.search(regex, body.decode(), re.I) and not re.search(regex, orig_body.decode(), re.I):
                 return (dbms, regex)
         return None, None
 
@@ -839,7 +839,7 @@ class XSSCharFinder(object):
                 # Just make them useless by entering empty tag and putting them at the end of the lxml matches
                 # so a split at tag won't find anything
                 if not tag_index:
-                    print(' '*36+'ERROR: Error: could not find tag index location. Element does not exist in root doc.')
+                    print((' '*36+'ERROR: Error: could not find tag index location. Element does not exist in root doc.'))
                     tag_index = 999999999
                     tag = ''
                 loc_tag = (tag_index, tag)

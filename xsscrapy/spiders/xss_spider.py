@@ -65,7 +65,7 @@ class XSSspider(CrawlSpider):
 
         # If password is not set and login user is then get password, otherwise set it
         if kwargs.get('pw') == 'None' and self.login_user is not None:
-            self.login_pass = input("Please enter the password: ")
+            self.login_pass = eval(input("Please enter the password: "))
         else:
             self.login_pass = kwargs.get('pw')
 
@@ -131,10 +131,11 @@ class XSSspider(CrawlSpider):
 
     def confirm_login(self, response):
         ''' Check that the username showed up in the response page '''
-        if self.login_user.lower() in response.body.lower():
+        if self.login_user.lower() in response.body.lower().decode():
             self.log('Successfully logged in (or, at least, the username showed up in the response html)')
             return Request(url=self.start_urls[0], dont_filter=True)
         else:
+            print('else: ', self.login_user.lower())
             self.log('FAILED to log in! (or at least cannot find the username on the post-login page which may be OK)')
             return Request(url=self.start_urls[0], dont_filter=True)
     ###########################################################################
@@ -143,7 +144,7 @@ class XSSspider(CrawlSpider):
         ''' Parse the robots.txt file and create Requests for the disallowed domains '''
         disallowed_urls = set([])
         for line in response.body.splitlines():
-            if 'disallow: ' in line.lower():
+            if 'disallow: ' in line.lower().decode():
                 try:
                     address = line.split()[1]
                 except IndexError:
@@ -191,7 +192,7 @@ class XSSspider(CrawlSpider):
         test_headers = []
         test_headers.append('Referer')
         if 'UA' in response.meta:
-            if response.meta['UA'] in body:
+            if response.meta['UA'] in body.decode():
                 test_headers.append('User-Agent')
         header_reqs = self.make_header_reqs(orig_url, payload, test_headers)
         if header_reqs:
@@ -441,7 +442,7 @@ class XSSspider(CrawlSpider):
         """
         Make the payload with a unique delim
         """
-        two_rand_letters = random.choice(string.lowercase) + random.choice(string.lowercase)
+        two_rand_letters = random.choice(string.ascii_lowercase) + random.choice(string.ascii_lowercase)
         delim_str = self.delim + two_rand_letters
         payload = delim_str + self.test_str + delim_str + ';9'
         return payload
