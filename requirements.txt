@@ -1,7 +1,7 @@
-Scrapy==1.1.0rc3
-pybloom==1.1
+scrapy
+pybloomfilter
 requests
-beautifulsoup
+bs4
 twisted==16.6.0
 w3lib
 lxml
