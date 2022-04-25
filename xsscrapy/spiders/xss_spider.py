@@ -6,10 +6,13 @@ from scrapy.http import FormRequest, Request
 from scrapy.selector import Selector
 from xsscrapy.items import inj_resp
 from xsscrapy.loginform import fill_login_form
-from urlparse import urlparse, parse_qsl, urljoin, urlunparse, urlunsplit
+from urllib.parse import urlparse, parse_qsl, urljoin, urlunparse, urlunsplit
 
 from scrapy.http.cookies import CookieJar
-from cookielib import Cookie
+try:
+    from http.cookiejar import CookieJar
+except ImportError:
+    from cookielib import CookieJar
 
 from lxml.html import soupparser, fromstring
 import lxml.etree
@@ -29,7 +32,7 @@ __author__ = 'Dan McInerney danhmcinerney@gmail.com'
 class XSSspider(CrawlSpider):
     name = 'xsscrapy'
     # Scrape 404 pages too
-    handle_httpstatus_list = [x for x in xrange(0,300)]+[x for x in xrange(400,600)]
+    handle_httpstatus_list = [x for x in range(0,300)]+[x for x in range(400,600)]
 
 
     rules = (Rule(LinkExtractor(), callback='parse_resp', follow=True), )
