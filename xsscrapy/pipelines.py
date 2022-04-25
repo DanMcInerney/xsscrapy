@@ -3,7 +3,7 @@
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 from scrapy.exceptions import DropItem
-import HTMLParser
+from html.parser import HTMLParser
 from xsscrapy.items import vuln#, inj_resp
 import re
 import lxml.etree
@@ -12,7 +12,7 @@ from lxml.html import soupparser, fromstring
 import itertools
 #from IPython import embed
 from socket import gaierror, gethostbyname
-from urlparse import urlparse
+from urllib.parse import urlparse
 from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG
 
 class XSSCharFinder(object):
@@ -839,7 +839,7 @@ class XSSCharFinder(object):
                 # Just make them useless by entering empty tag and putting them at the end of the lxml matches
                 # so a split at tag won't find anything
                 if not tag_index:
-                    print ' '*36+'ERROR: Error: could not find tag index location. Element does not exist in root doc.'
+                    print (' '*36+'ERROR: Error: could not find tag index location. Element does not exist in root doc.')
                     tag_index = 999999999
                     tag = ''
                 loc_tag = (tag_index, tag)
