@@ -1,6 +1,6 @@
 from scrapy.exceptions import IgnoreRequest
-from urlparse import unquote
-from pybloom import BloomFilter
+from urllib.parse import unquote
+from pybloomfilter import BloomFilter
 import random
 import re
 from xsscrapy.settings import bloomfilterSize
