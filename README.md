@@ -35,6 +35,8 @@ If you want to rate limit to 60 requests per minute:
 ```shell
 ./xsscrapy.py -u http://example.com/ -r 60
 ```
+If you want to  custom headers as an argument
+python your_script.py -u http://example.com --headers 'User-Agent: CustomAgent, X-Custom-Header: Value'
 
 
 XSS vulnerabilities are reported in xsscrapy-vulns.txt

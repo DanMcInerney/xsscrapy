@@ -2,7 +2,6 @@
 
 import argparse
 from scrapy.cmdline import execute
-from xsscrapy.spiders.xss_spider import XSSspider
 import sys
 
 __author__ = 'Dan McInerney'
@@ -19,7 +18,8 @@ def get_args():
     parser.add_argument('-c', '--connections', default='30', help="Set the max number of simultaneous connections allowed, default=30")
     parser.add_argument('-r', '--ratelimit', default='0', help="Rate in requests per minute, default=0")
     parser.add_argument('--basic', help="Use HTTP Basic Auth to login", action="store_true")
-    parser.add_argument('-k', '--cookie',help="Cookie key; --cookie SessionID=afgh3193e9103bca9318031bcdf")
+    parser.add_argument('-k', '--cookie', help="Cookie key; --cookie SessionID=afgh3193e9103bca9318031bcdf")
+    parser.add_argument('--headers', help="Custom headers; format: 'Header1: Value1, Header2: Value2'")
     args = parser.parse_args()
     return args
 
@@ -31,12 +31,22 @@ def main():
     try:
         cookie_key = args.cookie.split('=',1)[0] if args.cookie else None
         cookie_value = ''.join(args.cookie.split('=',1)[1:]) if args.cookie else None
+
+        # Process custom headers
+        headers = {}
+        if args.headers:
+            for header in args.headers.split(','):
+                key, value = header.split(':', 1)
+                headers[key.strip()] = value.strip()
+
+        header_params = [f'-s', f'HEADER_{key}={value}' for key, value in headers.items()]
+
         execute(['scrapy', 'crawl', 'xsscrapy',
                  '-a', 'url=%s' % args.url, '-a', 'user=%s' % args.login, '-a',
                  'pw=%s' % args.password, '-a', 'basic=%s' % args.basic,
                  '-a', 'cookie_key=%s' % cookie_key, '-a', 'cookie_value=%s' % cookie_value,
                  '-s', 'CONCURRENT_REQUESTS=%s' % args.connections,
-                 '-s', 'DOWNLOAD_DELAY=%s' % rate])
+                 '-s', 'DOWNLOAD_DELAY=%s' % rate] + header_params)
     except KeyboardInterrupt:
         sys.exit()
 
