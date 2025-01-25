@@ -1,12 +1,12 @@
 from scrapy.exceptions import IgnoreRequest
-from urllib.parse import unquote
+from scrapy.http import Request
 from pybloomfilter import BloomFilter
 import random
-import re
 from xsscrapy.settings import bloomfilterSize
+from xsscrapy.spiders.xss_spider import XSSspider
 
 # Filter out duplicate requests with Bloom filters since they're much easier on memory
-#URLS_FORMS_HEADERS = BloomFilter(3000000, 0.00001)
+# URLS_FORMS_HEADERS = BloomFilter(3000000, 0.00001)
 URLS_SEEN = BloomFilter(bloomfilterSize, .0001)
 FORMS_SEEN = BloomFilter(bloomfilterSize, .0001)
 HEADERS_SEEN = BloomFilter(bloomfilterSize, .0001)
@@ -17,8 +17,10 @@ USER_AGENT_LIST = ['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTM
                    'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.137 Safari/537.36',
                    'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0']
 
+
 class RandomUserAgentMiddleware(object):
     ''' Use a random user-agent for each request '''
+
     def process_request(self, request, spider):
         ua = random.choice(USER_AGENT_LIST)
         if 'payload' in request.meta:
@@ -30,10 +32,11 @@ class RandomUserAgentMiddleware(object):
         request.headers.setdefault('User-Agent', ua)
         request.meta['UA'] = ua
 
+
 class InjectedDupeFilter(object):
     ''' Filter duplicate payloaded URLs, headers, and forms since all of those have dont_filter = True '''
 
-    def process_request(self, request, spider):
+    def process_request(self, request: Request, spider: XSSspider):
 
         meta = request.meta
         if 'xss_place' not in meta:
@@ -43,8 +46,8 @@ class InjectedDupeFilter(object):
         # Injected URL dupe handling
         if meta['xss_place'] == 'url':
             url = request.url
-            #replace the delim characters with nothing so we only test the URL
-            #with the payload
+            # replace the delim characters with nothing so we only test the URL
+            # with the payload
             no_delim_url = url.replace(delim, '')
             if no_delim_url in URLS_SEEN:
                 raise IgnoreRequest

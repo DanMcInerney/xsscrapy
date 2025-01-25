@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import sys
 from argparse import ArgumentParser
 from collections import defaultdict
@@ -92,7 +93,8 @@ def main():
         print('requests library is required to use loginform as a tool')
 
     r = requests.get(args.url)
-    values, action, method = fill_login_form(args.url, r.text, args.username, args.password)
+    values, action, method = fill_login_form(
+        args.url, r.text, args.username, args.password)
     print('url: {0}\nmethod: {1}\npayload:'.format(action, method))
     for k, v in values:
         print('- {0}: {1}'.format(k, v))

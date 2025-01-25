@@ -5,6 +5,7 @@
 
 from scrapy.item import Item, Field
 
+
 class vuln(Item):
     unfiltered = Field()
     xss_payload = Field()
@@ -21,6 +22,7 @@ class vuln(Item):
     def __str__(self):
         ''' Prevent the item from being printed to output during debugging '''
         return ''
+
 
 class inj_resp(Item):
     resp = Field()

@@ -3,6 +3,7 @@ from scrapy.utils.job import job_dir
 from scrapy.dupefilters import BaseDupeFilter
 from xsscrapy.settings import bloomfilterSize
 
+
 class BloomURLDupeFilter(BaseDupeFilter):
     """Request Fingerprint duplicates filter"""
 
